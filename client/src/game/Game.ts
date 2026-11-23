@@ -1,0 +1,802 @@
+import * as THREE from 'three';
+import {
+  BRANCH_ORDER,
+  MARKET_EVENTS,
+  STALL_CATEGORIES,
+  type ActiveEventState,
+  type EventVisual,
+  type StallCategory,
+  type UpgradeBranch,
+} from '../../../shared/config';
+import type {
+  Appearance,
+  GameSnapshot,
+  JoinResult,
+  PlayerProfile,
+  PublicPlot,
+  RemotePlayer,
+} from '../../../shared/types';
+import { NetworkClient, type ConnectionState } from '../systems/NetworkClient';
+import { SettingsManager, type GameSettings } from '../systems/Settings';
+import { openDailyReport } from '../ui/DailyReportMenu';
+import { openHelpMenu } from '../ui/HelpMenu';
+import { HUD } from '../ui/HUD';
+import { LoginScreen, type LoginSubmitPayload } from '../ui/LoginScreen';
+import type { MenuContext } from '../ui/MenuContext';
+import { isModalOpen, modalHeader, openModal } from '../ui/Modal';
+import { Notifications } from '../ui/Notifications';
+import { ShopMenu } from '../ui/ShopMenu';
+import { SettingsMenu } from '../ui/SettingsMenu';
+import { StatsMenu } from '../ui/StatsMenu';
+import { UpgradeMenu } from '../ui/UpgradeMenu';
+import { openVisitMenu } from '../ui/VisitMenu';
+import { currentProgress, escapeHtml, nextTier, peso } from '../ui/format';
+import { AudioManager } from './AudioManager';
+import { BuildingGenerator } from './BuildingGenerator';
+import { CollisionSystem } from './CollisionSystem';
+import { CrowdSystem } from './CrowdSystem';
+import { Environment } from './Environment';
+import { Input } from './Input';
+import { InteractionSystem, type Interactable } from './InteractionSystem';
+import { MarketGenerator } from './MarketGenerator';
+import { Player } from './Player';
+import { PlotManager } from './PlotManager';
+import { RemotePlayers } from './RemotePlayers';
+import { ThirdPersonCamera } from './ThirdPersonCamera';
+import { UmbrellaSystem } from './UmbrellaSystem';
+import { WeatherSystem } from './WeatherSystem';
+
+const TIPS = [
+  'Tip: regulars love a well-kept stall.',
+  'Tip: stock up before the 6pm rush.',
+  'Tip: a rain tarp pays for itself in one typhoon.',
+  'Tip: press E at the glowing pads to upgrade.',
+  'Tip: your suki remember a fair price.',
+  'Tip: fixtures and feasts both draw a crowd.',
+];
+
+const SKINS = ['#f2d2b4', '#e4b58d', '#c99767', '#a66e45', '#7d4f2f'];
+const HAIRS = ['#191210', '#2e1f18', '#53331e', '#7f4b28', '#c79a55', '#24222c'];
+const PANTS = ['#283449', '#1a1f2a', '#414f63', '#665d4d', '#53313a', '#2f433c'];
+
+export class Game {
+  private canvas: HTMLCanvasElement;
+  private renderer!: THREE.WebGLRenderer;
+  private scene = new THREE.Scene();
+  private viewCamera!: THREE.PerspectiveCamera;
+  private cameraRig!: ThirdPersonCamera;
+
+  private settings = new SettingsManager();
+  private audio = new AudioManager();
+  private weather = new WeatherSystem();
+  private collision!: CollisionSystem;
+  private environment!: Environment;
+  private buildings!: BuildingGenerator;
+  private market!: MarketGenerator;
+  private umbrellas!: UmbrellaSystem;
+  private plotManager!: PlotManager;
+  private crowd!: CrowdSystem;
+  private remotePlayers!: RemotePlayers;
+  private player: Player | null = null;
+  private input!: Input;
+  private interaction!: InteractionSystem;
+
+  private network!: NetworkClient;
+  private login!: LoginScreen;
+  private hud!: HUD;
+  private notifications!: Notifications;
+  private upgradeMenu!: UpgradeMenu;
+  private shopMenu!: ShopMenu;
+  private statsMenu!: StatsMenu;
+  private settingsMenu!: SettingsMenu;
+
+  private profile: PlayerProfile | null = null;
+  private profileReceivedAt = 0;
+  private plots: PublicPlot[] = [];
+  private activeEvent: ActiveEventState | null = null;
+  private onlineCount = 0;
+  private serverOffset = 0;
+  private joined = false;
+  private joining = false;
+  private booted = false;
+  private lastPlotIndex = -1;
+  private lastFrame = 0;
+  private elapsed = 0;
+  private frameHandle = 0;
+  private atmosphereTimer = 0;
+  private cashSoundAt = 0;
+  private wasDisconnected = false;
+  private serverInfoTimer = 0;
+  private onboardingTimer = 0;
+  private settingsUnsub: (() => void) | null = null;
+  private detachFns: Array<() => void> = [];
+  private cinematicFocus = new THREE.Vector3(0, 0, 50);
+  private boundAnimate = (time: number) => this.animate(time);
+
+  constructor() {
+    const canvas = document.getElementById('game-canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Game canvas is missing.');
+    this.canvas = canvas;
+  }
+
+  async boot(): Promise<void> {
+    try {
+      this.setBoot('Warming the projector…', 4, TIPS[0]);
+      this.setupRenderer();
+      await this.nextFrame();
+
+      this.collision = new CollisionSystem();
+      this.setBoot('Paving Colon Street…', 13, TIPS[1]);
+      this.environment = new Environment(this.scene);
+      this.environment.addBoundaryAndProps(this.collision);
+      await this.nextFrame();
+
+      this.setBoot('Raising the shopfronts…', 27, TIPS[5]);
+      this.buildings = new BuildingGenerator(this.scene, this.collision);
+      this.buildings.build();
+      await this.nextFrame();
+
+      this.setBoot('Setting out the market stalls…', 44, TIPS[2]);
+      this.market = new MarketGenerator(this.scene, this.collision);
+      this.market.build();
+      await this.nextFrame();
+
+      this.setBoot('Stringing a hundred umbrellas…', 58, TIPS[3]);
+      this.umbrellas = new UmbrellaSystem(this.scene);
+      this.umbrellas.build();
+      await this.nextFrame();
+
+      this.setBoot('Marking the sixteen vendor bays…', 70, TIPS[4]);
+      this.plotManager = new PlotManager(this.scene, this.collision);
+      this.plotManager.build();
+      this.crowd = new CrowdSystem(this.scene);
+      this.crowd.build();
+      this.remotePlayers = new RemotePlayers(this.scene);
+      await this.nextFrame();
+
+      this.setBoot('Opening the gates to Colon…', 84, TIPS[0]);
+      this.setupNetwork();
+      this.setupUI();
+      // Input binds the joystick and mobile action buttons, so it must be created
+      // after the HUD has rendered those elements.
+      this.input = new Input(this.canvas);
+      this.applySettings(this.settings.current);
+      this.settingsUnsub = this.settings.onChange((next) => this.applySettings(next));
+
+      this.bindWindowEvents();
+      this.setBoot('The night market is open', 100, TIPS[5]);
+      this.booted = true;
+      this.login.show();
+      this.startLoop();
+      await this.nextFrame();
+      window.setTimeout(() => {
+        document.getElementById('boot-screen')?.classList.add('leaving');
+        window.setTimeout(() => document.getElementById('boot-screen')?.classList.add('hidden'), 760);
+      }, 320);
+      void this.refreshServerInfo();
+      this.serverInfoTimer = window.setInterval(() => {
+        if (!this.joined) void this.refreshServerInfo();
+      }, 15_000);
+    } catch (error) {
+      console.error(error);
+      this.failBoot(error);
+    }
+  }
+
+  private setupRenderer(): void {
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.canvas,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.14;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    this.viewCamera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 520);
+    this.viewCamera.position.set(0, 6.2, 72);
+    this.viewCamera.lookAt(0, 2.2, 45);
+    this.cameraRig = new ThirdPersonCamera(this.viewCamera, 0);
+  }
+
+  private setupNetwork(): void {
+    this.network = new NetworkClient({
+      onProfile: (profile) => this.handleProfile(profile),
+      onPlots: (plots) => this.handlePlots(plots),
+      onPositions: (players) => this.remotePlayers.syncAll(players),
+      onPlayerJoined: (player) => this.remotePlayers.upsert(player),
+      onPlayerLeft: (id) => this.remotePlayers.remove(id),
+      onNotification: (payload) => {
+        this.notifications?.show(payload);
+      },
+      onDayReport: (payload) => this.handleDayReport(payload),
+      onMarketEvent: (event) => this.handleMarketEvent(event),
+      onOnlineCount: (count) => {
+        this.onlineCount = count;
+        this.hud?.setOnline(count);
+      },
+      onStatus: (state, message) => this.handleConnectionState(state, message),
+      onForceLogout: (reason) => this.handleForceLogout(reason),
+      onRejoin: (snapshot, players) => {
+        this.applySnapshot(snapshot, false);
+        this.remotePlayers.syncAll(players);
+        this.notifications?.info('Signal restored', 'You are back in the Colon Street market.', 'success');
+        this.handleConnectionState('connected');
+      },
+    });
+  }
+
+  private setupUI(): void {
+    const toastRoot = document.getElementById('toast-root');
+    const hudRoot = document.getElementById('hud');
+    const loginRoot = document.getElementById('login-screen');
+    const overlayRoot = document.getElementById('overlay-root');
+    if (!toastRoot || !hudRoot || !loginRoot || !overlayRoot) throw new Error('User interface elements are missing.');
+
+    this.notifications = new Notifications(toastRoot, (kind) => this.audio.notify(kind));
+    const ctx: MenuContext = {
+      getProfile: () => {
+        if (!this.profile) throw new Error('No vendor profile is loaded.');
+        return this.profile;
+      },
+      network: this.network,
+      onProfile: (profile) => this.handleProfile(profile),
+      notify: this.notifications,
+    };
+
+    this.upgradeMenu = new UpgradeMenu(ctx);
+    this.shopMenu = new ShopMenu(ctx);
+    this.statsMenu = new StatsMenu(ctx);
+    this.settingsMenu = new SettingsMenu({
+      ...ctx,
+      settings: this.settings,
+      onSettingsChanged: () => {},
+      onAppearancePreview: (appearance) => {
+        if (this.player) this.player.avatar.setAppearance(appearance);
+      },
+      onSignOut: () => this.handleSignOut(),
+    });
+
+    this.hud = new HUD(hudRoot, {
+      onBranch: (branch: UpgradeBranch) => {
+        this.audio.click();
+        this.upgradeMenu.open(branch);
+      },
+      onBoosts: () => {
+        this.audio.click();
+        this.shopMenu.open('boosts');
+      },
+      onShop: () => {
+        this.audio.click();
+        this.shopMenu.open('stock');
+      },
+      onStats: () => {
+        this.audio.click();
+        this.statsMenu.open();
+      },
+      onSettings: () => {
+        this.audio.click();
+        this.settingsMenu.open();
+      },
+      onHelp: () => {
+        this.audio.click();
+        openHelpMenu();
+      },
+    });
+    this.hud.hide();
+    this.interaction = new InteractionSystem(this.hud);
+    this.login = new LoginScreen(loginRoot, (payload) => this.handleLogin(payload));
+  }
+
+  private bindWindowEvents(): void {
+    const resize = (): void => {
+      if (!this.viewCamera) return;
+      this.viewCamera.aspect = window.innerWidth / window.innerHeight;
+      this.viewCamera.updateProjectionMatrix();
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+    const visibility = (): void => {
+      this.lastFrame = 0;
+    };
+    const resetCamera = (): void => {
+      if (!this.player) return;
+      this.cameraRig.yaw = this.player.yaw;
+      this.cameraRig.pitch = 0.22;
+      this.cameraRig.distance = 5.6;
+      this.cameraRig.snap(this.player.position, this.collision);
+    };
+    window.addEventListener('resize', resize);
+    window.addEventListener('merkado:reset-camera', resetCamera);
+    document.addEventListener('visibilitychange', visibility);
+    this.detachFns.push(() => window.removeEventListener('resize', resize));
+    this.detachFns.push(() => window.removeEventListener('merkado:reset-camera', resetCamera));
+    this.detachFns.push(() => document.removeEventListener('visibilitychange', visibility));
+  }
+
+  private async handleLogin(payload: LoginSubmitPayload): Promise<JoinResult> {
+    if (this.joining) return { ok: false, error: 'The door is already opening. One moment.' };
+    this.joining = true;
+    try {
+      const appearance = this.makeAppearance(payload.category);
+      const result = await this.network.join({
+        name: payload.name,
+        token: payload.token,
+        category: payload.category,
+        appearance,
+      });
+      if (!result.ok || !result.snapshot) return result;
+
+      try {
+        localStorage.setItem('merkado.token', result.token ?? '');
+        localStorage.setItem('merkado.playerName', payload.name);
+      } catch {
+        /* Private browsing can block storage; the session still works. */
+      }
+
+      this.joined = true;
+      this.applySnapshot(result.snapshot, true);
+      this.remotePlayers.syncAll(result.players ?? []);
+      this.login.hide();
+      this.hud.show();
+      this.setConnectionOverlay(false);
+      this.input.setEnabled(true);
+      this.applySettings(this.settings.current);
+      void this.audio.start().then(() => this.applySettings(this.settings.current));
+      this.hud.setOnline(this.onlineCount);
+      this.cameraRig.yaw = this.player?.yaw ?? 0;
+      this.cameraRig.pitch = 0.2;
+      if (this.player) this.cameraRig.snap(this.player.position, this.collision);
+
+      this.onboardingTimer = window.setTimeout(() => {
+        try {
+          if (localStorage.getItem('merkado.onboarded')) return;
+          localStorage.setItem('merkado.onboarded', '1');
+        } catch {
+          /* ignore */
+        }
+        if (this.joined) openHelpMenu();
+      }, 1800);
+      return result;
+    } catch (error) {
+      console.error(error);
+      return { ok: false, error: 'The market server did not answer. Check that it is running and try again.' };
+    } finally {
+      this.joining = false;
+    }
+  }
+
+  private makeAppearance(category: StallCategory): Appearance {
+    const def = STALL_CATEGORIES[category];
+    return {
+      shirt: def.color,
+      pants: PANTS[Math.floor(Math.random() * PANTS.length)],
+      skin: SKINS[Math.floor(Math.random() * SKINS.length)],
+      hair: HAIRS[Math.floor(Math.random() * HAIRS.length)],
+    };
+  }
+
+  private applySnapshot(snapshot: GameSnapshot, resetCamera: boolean): void {
+    const profile = snapshot.profile;
+    this.profile = profile;
+    this.profileReceivedAt = Date.now();
+    this.serverOffset = snapshot.serverNow - Date.now();
+    this.hud.setServerOffset(this.serverOffset);
+    this.plots = snapshot.plots;
+    this.activeEvent = snapshot.activeEvent;
+    this.onlineCount = snapshot.onlineCount;
+
+    this.remotePlayers.setSelfId(profile.id);
+    this.ensurePlayer(profile);
+    this.lastPlotIndex = profile.plotIndex;
+    this.crowd.setOwnStall(profile.plotIndex);
+    this.plotManager.setState(this.plots, profile.id, profile);
+    this.hud.setProfile(profile);
+    this.hud.setEvent(this.activeEvent);
+    this.hud.setOnline(this.onlineCount);
+    this.weather.set(profile.weather.condition, this.activeEvent);
+    this.upgradeMenu.refresh(profile);
+    this.shopMenu.refresh(profile);
+    this.refreshInteractions();
+
+    if (resetCamera && this.player) {
+      this.cameraRig.yaw = this.player.yaw;
+      this.cameraRig.pitch = 0.2;
+      this.cameraRig.snap(this.player.position, this.collision);
+    }
+  }
+
+  private ensurePlayer(profile: PlayerProfile): void {
+    if (!this.player) {
+      this.player = new Player(this.scene, profile.appearance, profile.name, profile.plotIndex);
+      this.player.onFootstep = () => this.audio.footstep((this.player?.speed ?? 0) > 4.4);
+      this.player.setNameVisible(false);
+      this.player.setShadows(this.settings.current.quality === 'high');
+      this.cameraRig.yaw = this.player.yaw;
+      this.cameraRig.snap(this.player.position, this.collision);
+      return;
+    }
+    if (this.lastPlotIndex !== profile.plotIndex) {
+      this.player.spawnAtPlot(profile.plotIndex);
+      this.cameraRig.yaw = this.player.yaw;
+      this.cameraRig.snap(this.player.position, this.collision);
+    }
+    this.player.setAppearance(profile.appearance);
+  }
+
+  private handleProfile(profile: PlayerProfile): void {
+    const previous = this.profile;
+    this.profile = profile;
+    this.profileReceivedAt = Date.now();
+    this.ensurePlayer(profile);
+    this.lastPlotIndex = profile.plotIndex;
+    this.crowd.setOwnStall(profile.plotIndex);
+    this.hud.setProfile(profile);
+    this.weather.set(profile.weather.condition, this.activeEvent);
+    this.upgradeMenu.refresh(profile);
+    this.shopMenu.refresh(profile);
+    this.plotManager.setState(this.plots, profile.id, profile);
+    this.refreshInteractions();
+    this.remotePlayers.setSelfId(profile.id);
+
+    if (previous && profile.balance > previous.balance) {
+      const now = performance.now();
+      if (now - this.cashSoundAt > 7000) {
+        this.cashSoundAt = now;
+        this.audio.cash();
+      }
+    }
+  }
+
+  private handlePlots(plots: PublicPlot[]): void {
+    this.plots = plots;
+    if (!this.profile) {
+      this.plotManager.setState([], '', null);
+      return;
+    }
+    this.plotManager.setState(plots, this.profile.id, this.profile);
+    this.refreshInteractions();
+  }
+
+  private handleMarketEvent(event: ActiveEventState | null): void {
+    this.activeEvent = event;
+    this.hud.setEvent(event);
+    this.weather.set(this.profile?.weather.condition ?? 'clear', event);
+    if (event) this.hud.hidePrompt();
+  }
+
+  private handleDayReport(payload: { report: PlayerProfile['reports'][number]; profile: PlayerProfile }): void {
+    this.handleProfile(payload.profile);
+    openDailyReport(payload.report, payload.profile, this.notifications);
+    this.audio.upgrade();
+  }
+
+  private handleConnectionState(state: ConnectionState, message?: string): void {
+    if (!this.joined) {
+      this.setConnectionOverlay(false);
+      return;
+    }
+    const show = state !== 'connected';
+    this.setConnectionOverlay(show);
+    if (state === 'connected') {
+      if (this.wasDisconnected) {
+        this.wasDisconnected = false;
+      }
+    } else {
+      this.wasDisconnected = true;
+      if (state === 'error' && message) {
+        this.notifications?.info('Market signal', message, 'warning');
+      }
+    }
+  }
+
+  private setConnectionOverlay(show: boolean): void {
+    const el = document.getElementById('connection-lost');
+    if (!el) return;
+    el.classList.toggle('hidden', !show);
+  }
+
+  private handleForceLogout(reason: string): void {
+    this.joined = false;
+    this.input.setEnabled(false);
+    this.interaction.clear();
+    this.hud.hide();
+    this.setConnectionOverlay(false);
+    this.network.close();
+    const handle = openModal(
+      `
+        ${modalHeader({
+          eyebrow: 'Vendor session',
+          title: 'This stall signed in elsewhere',
+          subtitle: 'Only one market window can run each vendor at a time.',
+        })}
+        <div class="modal-body">
+          <div class="vendor-note">
+            <span>${escapeHtml(reason)} Your earnings and stock are safe on the server.</span>
+          </div>
+          <div class="help-card" style="margin-top:12px">
+            <b>Open the market again</b>
+            <p>Reload this window to come back with your saved vendor name and token.</p>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span class="modal-foot-note">Colon Street keeps your bay just as you left it.</span>
+          <button type="button" class="btn-gold" id="force-reload">Reload the market</button>
+        </div>
+      `,
+      'help-modal',
+    );
+    handle.el.querySelector('#force-reload')?.addEventListener('click', () => window.location.reload());
+  }
+
+  private handleSignOut(): void {
+    try {
+      localStorage.removeItem('merkado.token');
+      localStorage.removeItem('merkado.playerName');
+    } catch {
+      /* ignore */
+    }
+    this.network.close();
+    this.joined = false;
+    window.setTimeout(() => window.location.reload(), 120);
+  }
+
+  private refreshInteractions(): void {
+    if (!this.interaction || !this.plotManager || !this.profile) return;
+    const profile = this.profile;
+    const items: Interactable[] = [];
+
+    for (const point of this.plotManager.getStallPoints()) {
+      const plot = point.plot;
+      if (!plot) continue;
+      if (point.isSelf) {
+        const stock = Object.values(profile.inventory).reduce((sum, value) => sum + value, 0);
+        items.push({
+          id: `stall-${point.index}`,
+          position: point.center,
+          radius: point.radius,
+          title: 'Open your stall',
+          subtitle: stock < 18 ? 'Low stock — restock, set prices and plan tonight' : 'Stock, prices, power-ups and supplier news',
+          action: () => {
+            this.audio.click();
+            this.shopMenu.open('stock');
+          },
+        });
+      } else {
+        items.push({
+          id: `visit-${point.index}`,
+          position: point.center,
+          radius: point.radius,
+          title: `Visit ${plot.businessName}`,
+          subtitle: `${plot.ownerName} · ${plot.categories.map((c) => STALL_CATEGORIES[c].shortName).join(' + ')}`,
+          action: () => {
+            this.audio.click();
+            openVisitMenu(plot);
+          },
+        });
+      }
+    }
+
+    for (const pad of this.plotManager.getOwnPads()) {
+      const next = nextTier(profile, pad.branch);
+      const branchName = pad.branch[0].toUpperCase() + pad.branch.slice(1);
+      items.push({
+        id: `pad-${pad.branch}`,
+        position: pad.center,
+        radius: pad.radius,
+        title: `Upgrade ${branchName}`,
+        subtitle: next.tier
+          ? `Tier ${next.tier} · ${pad.name.toLowerCase()} choices`
+          : 'This branch is fully upgraded',
+        price: next.tier ? `from ${peso(next.cheapest ?? 0)}` : 'MAX',
+        priority: 1,
+        action: () => {
+          if (!this.profile) return;
+          this.audio.click();
+          this.upgradeMenu.open(pad.branch);
+        },
+      });
+    }
+
+    items.push({
+      id: 'market-board',
+      position: new THREE.Vector3(0, 0, 102),
+      radius: 2.6,
+      title: 'Colon market board',
+      subtitle: 'Controls, goals and how the night market works',
+      action: () => {
+        this.audio.click();
+        openHelpMenu();
+      },
+    });
+
+    this.interaction.setItems(items);
+  }
+
+  private applySettings(settings: GameSettings): void {
+    this.audio.setVolumes(settings.masterVolume, settings.ambienceVolume, settings.effectsVolume);
+    if (this.environment) this.environment.applyQuality(settings.quality);
+    if (this.renderer) {
+      const ratio = Math.min(window.devicePixelRatio || 1, settings.quality === 'low' ? 1 : settings.quality === 'medium' ? 1.5 : 2);
+      this.renderer.setPixelRatio(ratio);
+      this.renderer.shadowMap.enabled = settings.quality === 'high';
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+    this.player?.setShadows(settings.quality === 'high');
+    this.remotePlayers?.setShadows(settings.quality === 'high');
+    this.remotePlayers?.setShowNames(settings.showNames);
+    this.crowd?.setQuality(settings.quality);
+    this.weather.setEnabled(settings.weatherEffects);
+  }
+
+  private get eventVisual(): EventVisual {
+    if (!this.activeEvent) return 'none';
+    return MARKET_EVENTS[this.activeEvent.type]?.visual ?? 'none';
+  }
+
+  private update(dt: number): void {
+    const blocked = isModalOpen();
+    const look = this.input.consumeLook();
+    const wheel = this.input.consumeWheel();
+    const jump = this.input.consumeJump();
+    const interact = this.input.consumeInteract();
+    const help = this.input.consumeHelp();
+    const hasProfile = !!this.profile && !!this.player;
+    const progress = this.profile
+      ? currentProgress(this.profile, this.profileReceivedAt)
+      : 0.52 + Math.sin(this.elapsed * 0.008) * 0.015;
+    const visual = this.joined ? this.eventVisual : 'none';
+
+    if (hasProfile && this.joined) {
+      this.input.setEnabled(!blocked);
+      if (!blocked) {
+        this.cameraRig.rotate(look.dx, look.dy, this.settings.current.sensitivity, this.settings.current.invertDrag);
+        this.cameraRig.zoom(wheel);
+        if (help) {
+          this.audio.click();
+          openHelpMenu();
+        }
+      }
+      const intent = blocked
+        ? { x: 0, y: 0, sprint: false, jump: false }
+        : { x: this.input.movement.x, y: this.input.movement.y, sprint: this.input.sprint, jump };
+      this.player!.update(dt, this.elapsed, intent, this.cameraRig.yaw, this.collision);
+      this.network.sendPosition(this.player!.positionPayload);
+      this.interaction.setActive(!blocked);
+      this.interaction.update(this.player!.position);
+      // Trigger after the target refresh so a profile tick can never swallow the E press.
+      if (!blocked && interact) this.interaction.trigger();
+      this.cameraRig.update(
+        dt,
+        this.player!.position,
+        this.collision,
+        this.player!.speed,
+        this.settings.current.reduceMotion,
+      );
+    } else {
+      this.input.setEnabled(false);
+      this.updateCinematicCamera();
+    }
+
+    this.remotePlayers.update(dt, this.elapsed);
+    this.crowd.update(dt, this.elapsed);
+    this.market.update(dt, this.elapsed);
+    this.umbrellas.update(dt, this.elapsed);
+    this.plotManager.update(dt, this.elapsed);
+    this.weather.update(dt);
+
+    const focus = hasProfile && this.joined && this.player ? this.player.position : this.cinematicFocus;
+    this.environment.update(dt, progress, focus, visual);
+
+    this.atmosphereTimer -= dt;
+    if (this.atmosphereTimer <= 0) {
+      this.atmosphereTimer = 0.7;
+      this.crowd.setAtmosphere(progress, visual, this.settings.current.quality);
+      const rain = this.weather.isStorm ? 1 : this.weather.isRainy ? 0.65 : 0;
+      const crowdLevel = visual === 'crowd' ? 1 : this.crowd.activeCount > 28 ? 0.8 : 0.5;
+      this.audio.setEnvironment(crowdLevel, rain, progress > 0.72, this.settings.current.reduceMotion);
+    }
+    this.audio.update(dt, progress, this.weather.isRainy);
+  }
+
+  private updateCinematicCamera(): void {
+    const t = this.elapsed;
+    const orbit = t * 0.042;
+    this.viewCamera.position.set(
+      Math.sin(orbit) * 9.5,
+      6.35 + Math.sin(t * 0.17) * 0.38,
+      64 + Math.cos(orbit) * 10,
+    );
+    this.viewCamera.lookAt(0, 2.2, 43);
+    this.cinematicFocus.set(0, 0, 48);
+  }
+
+  private animate(time: number): void {
+    this.frameHandle = window.requestAnimationFrame(this.boundAnimate);
+    if (!this.booted) return;
+    if (!this.lastFrame) this.lastFrame = time;
+    const dt = Math.min(0.06, Math.max(0.001, (time - this.lastFrame) / 1000));
+    this.lastFrame = time;
+    this.elapsed += dt;
+    this.update(dt);
+    this.renderer.render(this.scene, this.viewCamera);
+  }
+
+  private startLoop(): void {
+    this.lastFrame = 0;
+    cancelAnimationFrame(this.frameHandle);
+    this.frameHandle = window.requestAnimationFrame(this.boundAnimate);
+  }
+
+  private async refreshServerInfo(): Promise<void> {
+    if (this.joined) return;
+    try {
+      const response = await fetch('/api/market', { cache: 'no-store' });
+      if (!response.ok) throw new Error('offline');
+      const data = (await response.json()) as { online?: number; persistence?: string };
+      this.login?.setServerStatus({
+        online: Number(data.online ?? 0),
+        persistence: String(data.persistence ?? 'memory'),
+        reachable: true,
+      });
+    } catch {
+      this.login?.setServerStatus({ online: 0, persistence: 'memory', reachable: false });
+    }
+  }
+
+  private setBoot(status: string, progress: number, tip?: string): void {
+    const statusEl = document.getElementById('boot-status');
+    const bar = document.getElementById('boot-progress');
+    const tipEl = document.getElementById('boot-tip');
+    if (statusEl) statusEl.textContent = status;
+    if (bar) bar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+    if (tipEl && tip) tipEl.textContent = tip;
+  }
+
+  private failBoot(error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+    this.setBoot('The market could not open', 100, 'Check the browser console, then reload.');
+    const statusEl = document.getElementById('boot-status');
+    if (statusEl) {
+      statusEl.textContent = `Could not start the 3D market: ${detail}`;
+      statusEl.style.color = '#e79b8f';
+    }
+    const tip = document.getElementById('boot-tip');
+    if (tip) tip.textContent = 'Make sure WebGL is enabled in your browser, then reload.';
+  }
+
+  private nextFrame(): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      window.requestAnimationFrame(finish);
+      // Background tabs pause animation frames; never leave the boot screen hanging.
+      window.setTimeout(finish, 400);
+    });
+  }
+
+  dispose(): void {
+    cancelAnimationFrame(this.frameHandle);
+    window.clearInterval(this.serverInfoTimer);
+    window.clearTimeout(this.onboardingTimer);
+    this.settingsUnsub?.();
+    for (const detach of this.detachFns) detach();
+    this.detachFns = [];
+    this.network?.close();
+    this.input?.dispose();
+    this.player?.dispose();
+    this.remotePlayers?.dispose();
+    this.crowd?.dispose();
+    this.plotManager?.dispose();
+    this.environment?.dispose();
+    this.audio.dispose();
+    this.renderer?.dispose();
+  }
+}
