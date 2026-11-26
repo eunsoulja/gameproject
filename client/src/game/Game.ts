@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import {
   BRANCH_ORDER,
   MARKET_EVENTS,
@@ -64,6 +68,8 @@ const PANTS = ['#283449', '#1a1f2a', '#414f63', '#665d4d', '#53313a', '#2f433c']
 export class Game {
   private canvas: HTMLCanvasElement;
   private renderer!: THREE.WebGLRenderer;
+  private composer: EffectComposer | null = null;
+  private bloomPass: UnrealBloomPass | null = null;
   private scene = new THREE.Scene();
   private viewCamera!: THREE.PerspectiveCamera;
   private cameraRig!: ThirdPersonCamera;
@@ -211,6 +217,7 @@ export class Game {
     this.viewCamera.position.set(0, 6.2, 72);
     this.viewCamera.lookAt(0, 2.2, 45);
     this.cameraRig = new ThirdPersonCamera(this.viewCamera, 0);
+    this.applyComposer(this.settings.current.quality !== 'low');
   }
 
   private setupNetwork(): void {
@@ -316,6 +323,7 @@ export class Game {
       this.viewCamera.aspect = window.innerWidth / window.innerHeight;
       this.viewCamera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.composer?.setSize(window.innerWidth, window.innerHeight);
     };
     const visibility = (): void => {
       this.lastFrame = 0;
@@ -662,12 +670,35 @@ export class Game {
       this.renderer.setPixelRatio(ratio);
       this.renderer.shadowMap.enabled = settings.quality === 'high';
       this.renderer.shadowMap.needsUpdate = true;
+      this.applyComposer(settings.quality !== 'low');
     }
     this.player?.setShadows(settings.quality === 'high');
     this.remotePlayers?.setShadows(settings.quality === 'high');
     this.remotePlayers?.setShowNames(settings.showNames);
     this.crowd?.setQuality(settings.quality);
     this.weather.setEnabled(settings.weatherEffects);
+  }
+
+  /** Toggle the bloom pipeline — lantern glow and neon signage only bloom on medium+. */
+  private applyComposer(enabled: boolean): void {
+    if (!this.viewCamera) return;
+    if (enabled && !this.composer) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.scene, this.viewCamera));
+      this.bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.4, // strength — subtle, the market glows rather than burns
+        0.55, // radius
+        0.7, // threshold — only bright emissive surfaces bloom
+      );
+      this.composer.addPass(this.bloomPass);
+      this.composer.addPass(new OutputPass());
+      this.composer.setSize(window.innerWidth, window.innerHeight);
+    } else if (!enabled && this.composer) {
+      this.composer.dispose();
+      this.composer = null;
+      this.bloomPass = null;
+    }
   }
 
   private get eventVisual(): EventVisual {
@@ -784,7 +815,8 @@ export class Game {
     this.lastFrame = time;
     this.elapsed += dt;
     this.update(dt);
-    this.renderer.render(this.scene, this.viewCamera);
+    if (this.composer) this.composer.render();
+    else this.renderer.render(this.scene, this.viewCamera);
   }
 
   private startLoop(): void {
