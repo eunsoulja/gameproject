@@ -157,7 +157,14 @@ export class AudioManager {
     const now = this.context.currentTime;
     if (now - this.lastStep < (running ? 0.12 : 0.2)) return;
     this.lastStep = now;
-    this.noiseBurst(now, running ? 0.075 : 0.055, running ? 900 : 620, running ? 0.1 : 0.065, 0);
+    const jitter = 0.85 + Math.random() * 0.3;
+    this.noiseBurst(
+      now,
+      (running ? 0.075 : 0.055) * jitter,
+      (running ? 900 : 620) * (0.9 + Math.random() * 0.25),
+      (running ? 0.1 : 0.065) * (0.8 + Math.random() * 0.4),
+      0,
+    );
   }
 
   click(): void {
