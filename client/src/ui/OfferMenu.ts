@@ -26,10 +26,13 @@ export class OfferMenu {
     this.handle = openModal(
       `
         ${modalHeader({
-          eyebrow: 'Bulk order',
-          eyebrowIcon: icon('box', 13),
+          eyebrow: offer.kind === 'consignment' ? 'Consignment offer' : 'Bulk order',
+          eyebrowIcon: icon(offer.kind === 'consignment' ? 'suki' : 'box', 13),
           title: `${escapeHtml(offer.buyerName)} wants ${offer.quantity}× ${escapeHtml(offer.productName)}`,
-          subtitle: 'A regular buyer is offering a bundle price — below your shelf price, paid in full right now.',
+          subtitle:
+            offer.kind === 'consignment'
+              ? 'A regular buyer will resell this at their own stall — paid now, a little below shelf price.'
+              : 'A regular buyer is offering a bundle price — below your shelf price, paid in full right now.',
         })}
         <div class="modal-body">
           <div class="offer-card">

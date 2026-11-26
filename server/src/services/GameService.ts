@@ -662,7 +662,7 @@ export class GameService {
     record.profile.today.revenue += offer.total;
     record.profile.today.productsSold += offer.quantity;
     record.profile.today.customers += 1;
-    record.profile.reputation = Math.min(100, record.profile.reputation + 0.8);
+    record.profile.reputation = Math.min(100, record.profile.reputation + (offer.kind === 'consignment' ? 1.2 : 0.8));
     record.profile.lifetime.totalRevenue += offer.total;
     record.profile.lifetime.totalEarnings += offer.total;
     record.profile.lifetime.totalCustomers += 1;
@@ -673,8 +673,11 @@ export class GameService {
     this.emitToSocket(record, 'offerResolved', { id: offer.id, accepted: true });
     this.notifyRecord(record, {
       kind: 'success',
-      title: 'Bulk order filled',
-      message: `${offer.buyerName} took ${offer.quantity} ${product.name} for ₱${offer.total.toLocaleString('en-PH')}.`,
+      title: offer.kind === 'consignment' ? 'Consignment filled' : 'Bulk order filled',
+      message:
+        offer.kind === 'consignment'
+          ? `${offer.buyerName} took ${offer.quantity} ${product.name} on consignment for ₱${offer.total.toLocaleString('en-PH')} — they will sell it at their own stall.`
+          : `${offer.buyerName} took ${offer.quantity} ${product.name} for ₱${offer.total.toLocaleString('en-PH')}.`,
     });
     this.saveService.recordTransaction(
       record.profile.id,
@@ -769,11 +772,13 @@ export class GameService {
     const product = candidates[Math.floor(Math.random() * candidates.length)];
     const stock = record.profile.inventory[product.id] ?? 0;
     const quantity = Math.min(stock, 5 + Math.floor(Math.random() * 9));
-    const unitPrice = Math.max(1, Math.round(effectiveSellingPrice(record.profile, product) * 0.88));
+    const kind: MarketOffer['kind'] = Math.random() < 0.3 ? 'consignment' : 'bulkBuy';
+    const factor = kind === 'consignment' ? 0.68 : 0.88;
+    const unitPrice = Math.max(1, Math.round(effectiveSellingPrice(record.profile, product) * factor));
     const buyerName = buyers[Math.floor(Math.random() * buyers.length)];
     const offer: MarketOffer = {
       id: `offer-${now}-${Math.floor(Math.random() * 9999)}`,
-      kind: 'bulkBuy',
+      kind,
       productId: product.id,
       productName: product.name,
       quantity,
