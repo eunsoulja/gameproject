@@ -99,6 +99,17 @@ export class ShopMenu {
         return;
       }
 
+      const preset = target.closest<HTMLButtonElement>('[data-price-preset]');
+      if (preset) {
+        const productId = preset.dataset.priceProduct!;
+        const product = PRODUCTS.find((item) => item.id === productId);
+        if (!product) return;
+        const factor = Number(preset.dataset.pricePreset);
+        const next = clamp(Math.round(product.price * factor), Math.floor(product.price * 0.7), Math.ceil(product.price * 1.4));
+        void this.setPrice(product, next);
+        return;
+      }
+
       const priceButton = target.closest<HTMLButtonElement>('[data-price-dir]');
       if (priceButton) {
         const productId = priceButton.dataset.priceProduct!;
@@ -240,6 +251,11 @@ export class ShopMenu {
               <button type="button" data-price-dir="1" data-price-product="${product.id}" aria-label="Raise price">+</button>
             </div>
             <span class="price-warn">${effective !== setPrice ? `${peso(effective)} after perks` : `target ${peso(product.price)}`}</span>
+            <div class="price-presets">
+              <button type="button" data-price-preset="0.85" data-price-product="${product.id}" title="Undercut the guide by 15%">−15%</button>
+              <button type="button" data-price-preset="1" data-price-product="${product.id}" title="Match the guide price">Guide</button>
+              <button type="button" data-price-preset="1.15" data-price-product="${product.id}" title="Premium pricing, +15%">+15%</button>
+            </div>
           </div>
         </div>
         <div class="buy-cell">
