@@ -86,6 +86,7 @@ const PATHS: Record<string, string> = {
   map: '<path d="m2.5 6 6.2-3 6.6 3 6.2-3v15l-6.2 3-6.6-3-6.2 3V6ZM8.7 3v15M15.3 6v15"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 5H4v2a4 4 0 0 0 4 4M16 5h4v2a4 4 0 0 1-4 4M12 13v5M8.5 21h7M9.5 18h5"/>',
+  parol: '<path d="M12 2.2 14.4 8l6.3.8-4.7 4.3 1.3 6.3L12 16.2l-5.3 3.2 1.3-6.3L3.3 8.8 9.6 8 12 2.2Z"/><path d="M12 16.2v3.5M9.6 19.7h4.8"/><path d="M12 0.7v1.1M4 4.6l.8.8M20 4.6l-.8.8"/>',
   eye: '<path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
   drop: '<path d="M12 2.5s6.5 7.2 6.5 12a6.5 6.5 0 0 1-13 0c0-4.8 6.5-12 6.5-12Z"/>',
   bag: '<path d="M4.5 7.5h15L21 21H3L4.5 7.5Z"/><path d="M8.5 7.5V6a3.5 3.5 0 0 1 7 0v1.5"/>',
