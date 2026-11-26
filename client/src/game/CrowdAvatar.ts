@@ -13,6 +13,8 @@ export class CrowdAvatar {
   private material: THREE.MeshLambertMaterial;
   private phase = Math.random() * Math.PI * 2;
   private umbrellaGroup: THREE.Group;
+  private lean = 0;
+  private leanTarget = 0;
 
   constructor(appearance: Appearance, scale = 1) {
     const parts: THREE.BufferGeometry[] = [];
@@ -97,20 +99,26 @@ export class CrowdAvatar {
     this.umbrellaGroup.visible = on;
   }
 
+  /** Forward hunch (radians) — used when browsing a stall. */
+  setLean(value: number): void {
+    this.leanTarget = value;
+  }
+
   get position(): THREE.Vector3 {
     return this.root.position;
   }
 
   update(dt: number, elapsed: number, speed: number): void {
+    this.lean += (this.leanTarget - this.lean) * Math.min(1, dt * 6);
     if (speed > 0.08) {
       this.phase += dt * (4.8 + Math.min(3, speed * 1.5));
       this.mesh.position.y = Math.abs(Math.sin(this.phase)) * 0.035;
       this.mesh.rotation.z = Math.sin(this.phase) * 0.022;
-      this.mesh.rotation.x = 0.035;
+      this.mesh.rotation.x = 0.035 + this.lean;
     } else {
       this.mesh.position.y = Math.sin(elapsed * 1.3 + this.phase) * 0.006;
       this.mesh.rotation.z += (0 - this.mesh.rotation.z) * Math.min(1, dt * 4);
-      this.mesh.rotation.x += (0 - this.mesh.rotation.x) * Math.min(1, dt * 4);
+      this.mesh.rotation.x += (this.lean - this.mesh.rotation.x) * Math.min(1, dt * 4);
     }
   }
 

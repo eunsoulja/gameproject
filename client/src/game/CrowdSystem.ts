@@ -197,6 +197,8 @@ export class CrowdSystem {
     }
 
     customer.avatar.root.position.set(customer.x, 0, customer.z);
+    // Browsers lean in toward the stall — a tiny posture cue that sells the stall visit.
+    customer.avatar.setLean(customer.state === 'browse' ? 0.12 : 0);
     const current = customer.avatar.root.rotation.y;
     let delta = customer.faceYaw - current;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
