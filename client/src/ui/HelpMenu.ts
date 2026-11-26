@@ -32,7 +32,7 @@ export function openHelpMenu(): void {
           </div>
           <div class="help-card">
             <b>${icon('monitor', 14)} Controls</b>
-            <p><b>WASD</b> walk · <b>Shift</b> run · <b>Space</b> jump · <b>E</b> interact · drag mouse to look · scroll to zoom. Panels: <b>B</b> stock · <b>P</b> power-ups · <b>T</b> ledger · <b>H</b> this help. Emotes: <b>1–4</b> wave, dance, point, cheer.</p>
+            <p><b>WASD</b> walk · <b>Shift</b> run · <b>Space</b> jump · <b>E</b> interact · drag mouse to look · scroll to zoom. Panels: <b>B</b> stock · <b>P</b> power-ups · <b>T</b> ledger · <b>H</b> this help. Emotes: <b>1–4</b> wave, dance, point, cheer. Extras: <b>M</b> mute · <b>F</b> fullscreen · <b>R</b> reset camera.</p>
           </div>
           <div class="help-card">
             <b>${icon('suki', 14)} Suki & missions</b>
