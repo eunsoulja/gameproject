@@ -21,6 +21,7 @@ const AIR_ACCEL = 5.5;
 const JUMP_SPEED = 4.9;
 const GRAVITY = 15.5;
 const RADIUS = 0.38;
+const COYOTE_TIME = 0.11;
 
 export class Player {
   readonly avatar: Avatar;
@@ -35,6 +36,7 @@ export class Player {
   private shadow: THREE.Mesh;
   private facingTarget = 0;
   private jumpBuffer = 0;
+  private coyoteTimer = 0;
   private bob = 0;
   onFootstep: (() => void) | null = null;
 
@@ -130,12 +132,16 @@ export class Player {
       this.velocity.z += (0 - this.velocity.z) * friction;
     }
 
+    if (this.grounded) this.coyoteTimer = COYOTE_TIME;
+    else this.coyoteTimer = Math.max(0, this.coyoteTimer - dt);
+
     if (intent.jump) this.jumpBuffer = 0.16;
     else this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
 
-    if (this.jumpBuffer > 0 && this.grounded) {
+    if (this.jumpBuffer > 0 && (this.grounded || this.coyoteTimer > 0)) {
       this.vertical = JUMP_SPEED;
       this.grounded = false;
+      this.coyoteTimer = 0;
       this.jumpBuffer = 0;
     }
 
