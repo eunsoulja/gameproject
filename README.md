@@ -9,9 +9,27 @@ Built with **Three.js** on the client, **Express + Socket.IO** on the server, an
 - Third-person 3D night market with procedurally generated stalls, crowds, umbrellas, weather, and audio
 - Real-time economy: prices shift with supply, demand, and market events
 - Buy, sell, and inventory management with plots and upgrades
+- Suki regulars who remember your stall, nightly missions, and a badge collection
+- Market offers (bulk buys, consignment), supplier haggling, and player compliments
+- Difficulty modes (chill / standard / hustle) and save export/import
+- Emotes, floating sale text, bloom post-processing, real rain particles, and jeepneys
 - Multiplayer-ready Socket.IO server with synchronized market state and remote players
 - Day cycle with daily reports
 - Optional MongoDB saves; in-memory mode works out of the box
+
+## Controls
+
+| Input | Action |
+| --- | --- |
+| `WASD` | Move |
+| `Shift` | Sprint |
+| `Space` | Jump |
+| `E` | Interact |
+| Drag / scroll | Look / zoom |
+| `B` `P` `T` | Stock / power-ups / ledger panels |
+| `1`–`4` | Wave, dance, point, cheer emotes |
+| `M` `F` `R` `N` | Mute, fullscreen, reset camera, name tags |
+| `H` | Help |
 
 ## Requirements
 
