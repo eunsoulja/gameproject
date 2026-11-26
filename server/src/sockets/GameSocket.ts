@@ -70,6 +70,7 @@ export function registerGameSockets(io: Server, game: GameService): void {
         z: p.z as number,
         rot: p.rot as number,
         anim: p.anim as 'idle' | 'walk' | 'run' | 'jump',
+        emote: typeof p.emote === 'string' ? p.emote : undefined,
       });
     });
 
@@ -124,6 +125,41 @@ export function registerGameSockets(io: Server, game: GameService): void {
       safe(ack, () => {
         if (!rateLimit(socket, 600)) return { ok: false, error: 'Slow down a moment.' };
         return game.setAppearance(socket.id, payload as never);
+      });
+    });
+
+    socket.on('respondOffer', (payload: unknown, ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 200)) return { ok: false, error: 'Slow down a moment.' };
+        const p = (payload ?? {}) as Record<string, unknown>;
+        if (typeof p.id !== 'string') return { ok: false, error: 'Invalid offer.' };
+        return game.respondOffer(socket.id, p.id, p.accept === true);
+      });
+    });
+
+    socket.on('setDifficulty', (payload: unknown, ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 400)) return { ok: false, error: 'Slow down a moment.' };
+        const p = (payload ?? {}) as Record<string, unknown>;
+        if (typeof p.difficulty !== 'string') return { ok: false, error: 'Invalid difficulty.' };
+        return game.setDifficulty(socket.id, p.difficulty);
+      });
+    });
+
+    socket.on('sendCompliment', (payload: unknown, ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 900)) return { ok: false, error: 'Slow down a moment.' };
+        const p = (payload ?? {}) as Record<string, unknown>;
+        if (typeof p.toId !== 'string') return { ok: false, error: 'Invalid vendor.' };
+        return game.sendCompliment(socket.id, p.toId, typeof p.message === 'string' ? p.message : '');
+      });
+    });
+
+    socket.on('importSave', (payload: unknown, ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 900)) return { ok: false, error: 'Slow down a moment.' };
+        const p = (payload ?? {}) as Record<string, unknown>;
+        return game.importSave(socket.id, p.save ?? p);
       });
     });
 

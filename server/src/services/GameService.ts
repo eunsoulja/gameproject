@@ -6,6 +6,8 @@ import {
   MARKET_EVENTS,
   MAX_PLOTS,
   POWERUPS,
+  PRODUCT_BY_ID,
+  PRODUCTS,
   START_DAY_PROGRESS,
   STALL_CATEGORIES,
   dateForDay,
@@ -23,6 +25,7 @@ import type {
   Appearance,
   GameSnapshot,
   JoinResult,
+  MarketOffer,
   PlayerProfile,
   PositionPayload,
   RemotePlayer,
@@ -35,6 +38,8 @@ import {
   createNewProfile,
   emptyToday,
   endDay,
+  ensureQuest,
+  effectiveSellingPrice,
   makeAppearance,
   normalizeProfile,
   simulateSales,
@@ -51,8 +56,15 @@ interface PlayerRecord {
   nameKey: string;
   socketId: string | null;
   position: PositionPayload;
+  emote: string | null;
+  emoteUntil: number;
   lowStockWarnAt: number;
   lastActionAt: number;
+}
+
+interface PendingOffer {
+  offer: MarketOffer;
+  record: PlayerRecord;
 }
 
 interface Clock {
@@ -63,6 +75,9 @@ interface Clock {
 const ONLINE_POSITION_HZ = 8;
 const ECON_TICK_MS = 5000;
 const ANIM_STATES = new Set(['idle', 'walk', 'run', 'jump']);
+const EMOTE_STATES = new Set(['wave', 'dance', 'point', 'cheer']);
+const OFFER_TTL_MS = 45_000;
+const OFFER_INTERVAL_MS = 80_000;
 
 export class GameService {
   private records = new Map<string, PlayerRecord>();
@@ -78,6 +93,8 @@ export class GameService {
   private lastSave = 0;
   private nextEventAllowedAt = Date.now() + 55_000;
   private lastEventType: MarketEventType | null = null;
+  private offers = new Map<string, PendingOffer>();
+  private nextOfferAt = 0;
   private plotsDirty = true;
   private lastOnlineCount = 0;
   private timers: NodeJS.Timeout[] = [];
@@ -115,6 +132,8 @@ export class GameService {
             anim: 'idle',
           },
           lowStockWarnAt: 0,
+          emote: null,
+          emoteUntil: 0,
           lastActionAt: 0,
         });
         this.nameIndex.set(nameKey, profile.id);
@@ -136,6 +155,7 @@ export class GameService {
     this.running = true;
     this.lastTick = Date.now();
     this.nextEventAllowedAt = Date.now() + 55_000;
+    this.nextOfferAt = Date.now() + 90_000;
 
     const main = setInterval(() => this.tick(), 1000);
     const positions = setInterval(() => this.broadcastPositions(), Math.round(1000 / ONLINE_POSITION_HZ));
@@ -189,6 +209,7 @@ export class GameService {
     }
 
     if (!this.activeEvent) this.maybeStartEvent(now);
+    this.maybeSendOffer(now);
 
     if (now - this.lastEconomyTick >= ECON_TICK_MS) {
       this.lastEconomyTick = now;
@@ -219,6 +240,7 @@ export class GameService {
         const { report, notices } = endDay(profile, now, this.activeEvent);
         profile.day = this.clock.day;
         profile.dayProgress = this.clock.progress;
+        ensureQuest(profile, this.clock.day);
         updateWeather(profile, this.dayWeather);
         profile.activeEvent = null;
         this.saveService.recordDailyReport(profile.id, report);
@@ -286,6 +308,7 @@ export class GameService {
       record.profile.online = true;
       record.profile.dayProgress = this.clock.progress;
       record.profile.activeEvent = this.activeEvent;
+      ensureQuest(record.profile, this.clock.day);
       updateWeather(record.profile, this.currentWeather());
       record.socketId = socket.id;
       record.position = {
@@ -344,10 +367,13 @@ export class GameService {
         anim: 'idle',
       },
       lowStockWarnAt: 0,
+      emote: null,
+      emoteUntil: 0,
       lastActionAt: 0,
     };
     record.profile.online = true;
     record.profile.activeEvent = this.activeEvent;
+    ensureQuest(record.profile, this.clock.day);
     updateWeather(record.profile, this.currentWeather());
     this.records.set(id, record);
     this.nameIndex.set(nameKey, id);
@@ -409,6 +435,12 @@ export class GameService {
       rot: Number.isFinite(position.rot) ? position.rot : 0,
       anim: ANIM_STATES.has(position.anim) ? position.anim : 'idle',
     };
+    if (position.emote && EMOTE_STATES.has(position.emote)) {
+      record.emote = position.emote;
+      record.emoteUntil = Date.now() + 2600;
+    } else if (record.emote && Date.now() > record.emoteUntil) {
+      record.emote = null;
+    }
   }
 
   purchaseUpgrade(socketId: string, branch: UpgradeBranch, tier: number, optionId: string): Ack<PlayerProfile> {
@@ -533,6 +565,187 @@ export class GameService {
     this.broadcastPlots();
     void this.saveService.save(this.serializeRecord(record)!);
     return { ok: true, data: record.profile };
+  }
+
+  setDifficulty(socketId: string, difficulty: string): Ack<PlayerProfile> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    if (difficulty !== 'chill' && difficulty !== 'standard' && difficulty !== 'hustle') {
+      return { ok: false, error: 'Unknown difficulty.' };
+    }
+    record.profile.difficulty = difficulty;
+    this.notifyRecord(record, {
+      kind: 'info',
+      title: 'Pace updated',
+      message:
+        difficulty === 'chill'
+          ? 'Chill mode: a gentler crowd and lower nightly costs.'
+          : difficulty === 'hustle'
+            ? 'Hustle mode: a bigger crowd, but prices and costs run hotter.'
+            : 'Standard market rhythm restored.',
+    });
+    this.emitProfile(record);
+    void this.saveService.save(this.serializeRecord(record)!);
+    return { ok: true, data: record.profile };
+  }
+
+  importSave(socketId: string, raw: unknown): Ack<PlayerProfile> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    if (!raw || typeof raw !== 'object') return { ok: false, error: 'That does not look like a save file.' };
+    let imported: PlayerProfile;
+    try {
+      imported = normalizeProfile(raw as PlayerProfile);
+    } catch {
+      return { ok: false, error: 'That save file could not be read.' };
+    }
+    // Identity and plot ownership always stay with the live record — a save
+    // file can restore a stall's contents but never hijack a name or bay.
+    imported.id = record.profile.id;
+    imported.name = record.profile.name;
+    imported.plotIndex = record.profile.plotIndex;
+    imported.online = false;
+    imported.updatedAt = Date.now();
+    imported.balance = Math.min(imported.balance, 50_000_000);
+    if (!imported.businessName) imported.businessName = record.profile.businessName;
+    record.profile = imported;
+    this.plotsDirty = true;
+    this.notifyRecord(record, {
+      kind: 'success',
+      title: 'Save restored',
+      message: `Welcome back, ${record.profile.businessName}. The stall is exactly where you left it.`,
+    });
+    this.emitProfile(record);
+    this.broadcastPlots();
+    void this.saveService.save(this.serializeRecord(record)!);
+    return { ok: true, data: record.profile };
+  }
+
+  respondOffer(socketId: string, offerId: string, accept: boolean): Ack<PlayerProfile> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    const pending = this.offers.get(offerId);
+    if (!pending || pending.record !== record) {
+      return { ok: false, error: 'That offer is no longer open.' };
+    }
+    this.offers.delete(offerId);
+    const { offer } = pending;
+    const now = Date.now();
+
+    if (!accept || offer.expiresAt <= now) {
+      this.emitToSocket(record, 'offerResolved', { id: offer.id, accepted: false });
+      if (accept) {
+        this.notifyRecord(record, {
+          kind: 'warning',
+          title: 'Offer expired',
+          message: `${offer.buyerName}'s bulk order lapsed before you answered.`,
+        });
+      }
+      return { ok: true, data: record.profile };
+    }
+
+    const product = PRODUCT_BY_ID[offer.productId];
+    const inStock = record.profile.inventory[offer.productId] ?? 0;
+    if (!product || inStock < offer.quantity) {
+      this.emitToSocket(record, 'offerResolved', { id: offer.id, accepted: false });
+      this.notifyRecord(record, {
+        kind: 'warning',
+        title: 'Not enough stock',
+        message: `You need ${offer.quantity} ${product?.name ?? offer.productName} on hand for that order.`,
+      });
+      return { ok: false, error: 'Not enough stock for that order.' };
+    }
+
+    record.profile.inventory[offer.productId] = inStock - offer.quantity;
+    record.profile.balance += offer.total;
+    record.profile.today.revenue += offer.total;
+    record.profile.today.productsSold += offer.quantity;
+    record.profile.today.customers += 1;
+    record.profile.reputation = Math.min(100, record.profile.reputation + 0.8);
+    record.profile.lifetime.totalRevenue += offer.total;
+    record.profile.lifetime.totalEarnings += offer.total;
+    record.profile.lifetime.totalCustomers += 1;
+    record.profile.lifetime.totalProductsSold += offer.quantity;
+    record.profile.today.soldByProduct[offer.productId] =
+      (record.profile.today.soldByProduct[offer.productId] ?? 0) + offer.quantity;
+
+    this.emitToSocket(record, 'offerResolved', { id: offer.id, accepted: true });
+    this.notifyRecord(record, {
+      kind: 'success',
+      title: 'Bulk order filled',
+      message: `${offer.buyerName} took ${offer.quantity} ${product.name} for ₱${offer.total.toLocaleString('en-PH')}.`,
+    });
+    this.saveService.recordTransaction(
+      record.profile.id,
+      'bulk_sale',
+      offer.total,
+      record.profile.balance,
+      `Bulk order from ${offer.buyerName}`,
+      { offerId: offer.id },
+    );
+    this.emitProfile(record);
+    this.plotsDirty = true;
+    void this.saveService.save(this.serializeRecord(record)!);
+    return { ok: true, data: record.profile };
+  }
+
+  sendCompliment(socketId: string, toId: string, rawMessage: string): Ack {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    if (!this.canAct(record)) return { ok: false, error: 'Slow down a moment.' };
+    const target = [...this.records.values()].find((r) => r.profile.id === toId);
+    if (!target || target === record) return { ok: false, error: 'That vendor is not here.' };
+    const message = typeof rawMessage === 'string' ? rawMessage.replace(/\s+/g, ' ').trim().slice(0, 90) : '';
+    if (message.length < 2) return { ok: false, error: 'Write a short compliment first.' };
+    this.notifyRecord(target, {
+      kind: 'success',
+      title: `${record.profile.name} sends compliments`,
+      message: `“${message}” — from a fellow vendor on Colon Street.`,
+    });
+    record.profile.reputation = Math.min(100, record.profile.reputation + 0.2);
+    this.emitProfile(record);
+    return { ok: true };
+  }
+
+  private maybeSendOffer(now: number): void {
+    if (now < this.nextOfferAt) return;
+    this.nextOfferAt = now + OFFER_INTERVAL_MS + Math.random() * 60_000;
+    const online = this.onlineRecords();
+    if (online.length < 1) return;
+
+    // Sweep expired offers.
+    for (const [id, pending] of this.offers) {
+      if (pending.offer.expiresAt <= now) {
+        this.offers.delete(id);
+        this.emitToSocket(pending.record, 'offerResolved', { id, accepted: false });
+      }
+    }
+    if (this.offers.size >= online.length) return;
+
+    const buyers = ['Mang Domeng', 'Aling Puring', 'Kuya Bebot', 'Inday Luning', 'Tatay Ondoy', 'Manang Susing'];
+    const record = online[Math.floor(Math.random() * online.length)];
+    if ([...this.offers.values()].some((p) => p.record === record)) return;
+
+    const candidates = PRODUCTS.filter((p) => (record.profile.inventory[p.id] ?? 0) >= 5);
+    if (!candidates.length) return;
+    const product = candidates[Math.floor(Math.random() * candidates.length)];
+    const stock = record.profile.inventory[product.id] ?? 0;
+    const quantity = Math.min(stock, 5 + Math.floor(Math.random() * 9));
+    const unitPrice = Math.max(1, Math.round(effectiveSellingPrice(record.profile, product) * 0.88));
+    const buyerName = buyers[Math.floor(Math.random() * buyers.length)];
+    const offer: MarketOffer = {
+      id: `offer-${now}-${Math.floor(Math.random() * 9999)}`,
+      kind: 'bulkBuy',
+      productId: product.id,
+      productName: product.name,
+      quantity,
+      unitPrice,
+      total: quantity * unitPrice,
+      expiresAt: now + OFFER_TTL_MS,
+      buyerName,
+    };
+    this.offers.set(offer.id, { offer, record });
+    this.emitToSocket(record, 'offer', offer);
   }
 
   getSnapshot(socketId: string): Ack<GameSnapshot> {
@@ -663,6 +876,8 @@ export class GameService {
       z: record.position.z,
       rot: record.position.rot,
       anim: record.position.anim,
+      emote: record.emote && record.emoteUntil > Date.now() ? record.emote : null,
+      emoteUntil: record.emoteUntil,
       appearance: record.profile.appearance,
       reputation: record.profile.reputation,
     };
