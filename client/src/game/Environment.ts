@@ -54,6 +54,7 @@ export class Environment {
   private dustBase!: Float32Array;
   private fog: THREE.Fog;
   private blackout = false;
+  private lightning = 0;
   private elapsed = 0;
   private puddles: THREE.Mesh[] = [];
   private archLights: THREE.Sprite[] = [];
@@ -635,6 +636,7 @@ export class Environment {
 
   update(dt: number, progress: number, focus: THREE.Vector3, visual: EventVisual): void {
     this.elapsed += dt;
+    this.lightning = Math.max(0, this.lightning - dt * 2.6);
     this.eventVisual = visual;
     this.applyTime(progress);
     this.sky.position.set(focus.x, 0, focus.z);
@@ -713,7 +715,12 @@ export class Environment {
     (this.moon.material as THREE.MeshBasicMaterial).opacity = night;
     (this.moonHalo.material as THREE.SpriteMaterial).opacity = night * 0.42;
     const dim = this.eventVisual === 'outage' ? 0.22 : 1;
-    for (const entry of this.pointLights) entry.light.intensity = entry.base * dim * (0.65 + night * 0.5);
+    const flash = this.lightning;
+    this.lights.hemi.intensity += flash * 1.6;
+    this.lights.sky.intensity += flash * 1.1;
+    this.lights.sun.intensity += flash * 0.8;
+    if (flash > 0.01) this.lights.hemi.color.lerp(new THREE.Color('#cfe0ff'), flash * 0.7);
+    for (const entry of this.pointLights) entry.light.intensity = entry.base * dim * (0.65 + night * 0.5) * (1 + flash * 0.6);
     for (const puddle of this.puddles) {
       (puddle.material as THREE.MeshPhysicalMaterial).opacity = daylight > 0.45 ? 0.28 : 0.75;
     }
@@ -731,6 +738,11 @@ export class Environment {
       }
     }
     (this.dust.material as THREE.PointsMaterial).size = quality === 'low' ? 0.04 : 0.055;
+  }
+
+  /** Called when lightning fires — briefly floods the scene with cool light. */
+  strike(): void {
+    this.lightning = 1;
   }
 
   setBlackout(on: boolean): void {

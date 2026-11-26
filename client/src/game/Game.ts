@@ -42,6 +42,7 @@ import { CollisionSystem } from './CollisionSystem';
 import { CrowdSystem } from './CrowdSystem';
 import { Environment } from './Environment';
 import { FloatingText } from './FloatingText';
+import { RainParticles } from './RainParticles';
 import { Input } from './Input';
 import { InteractionSystem, type Interactable } from './InteractionSystem';
 import { MarketGenerator } from './MarketGenerator';
@@ -105,6 +106,7 @@ export class Game {
   private settingsMenu!: SettingsMenu;
   private offerMenu!: OfferMenu;
   private menuContext!: MenuContext;
+  private rain: RainParticles | null = null;
 
   private profile: PlayerProfile | null = null;
   private profileReceivedAt = 0;
@@ -160,6 +162,9 @@ export class Game {
       this.setBoot('Stringing a hundred umbrellas…', 58, TIPS[3]);
       this.umbrellas = new UmbrellaSystem(this.scene);
       this.umbrellas.build();
+      this.rain = new RainParticles();
+      this.scene.add(this.rain.object);
+      this.weather.onLightning = () => this.environment?.strike();
       await this.nextFrame();
 
       this.setBoot('Marking the sixteen vendor bays…', 70, TIPS[4]);
@@ -780,6 +785,15 @@ export class Game {
     this.umbrellas.update(dt, this.elapsed);
     this.plotManager.update(dt, this.elapsed);
     this.weather.update(dt);
+    const rainIntensity = !this.settings.current.weatherEffects
+      ? 0
+      : this.weather.isStorm
+        ? 1
+        : this.weather.isRainy
+          ? 0.6
+          : 0;
+    this.rain?.setIntensity(rainIntensity);
+    this.rain?.update(dt, this.viewCamera.position);
 
     const focus = hasProfile && this.joined && this.player ? this.player.position : this.cinematicFocus;
     this.environment.update(dt, progress, focus, visual);
