@@ -93,6 +93,7 @@ export class GameService {
   private lastSave = 0;
   private nextEventAllowedAt = Date.now() + 55_000;
   private lastEventType: MarketEventType | null = null;
+  private negotiationDay = new Map<string, number>();
   private offers = new Map<string, PendingOffer>();
   private nextOfferAt = 0;
   private plotsDirty = true;
@@ -685,6 +686,43 @@ export class GameService {
     );
     this.emitProfile(record);
     this.plotsDirty = true;
+    void this.saveService.save(this.serializeRecord(record)!);
+    return { ok: true, data: record.profile };
+  }
+
+  negotiateSupplier(socketId: string, category: string): Ack<PlayerProfile> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    if (!this.canAct(record)) return { ok: false, error: 'Slow down a moment.' };
+    if (!(category in STALL_CATEGORIES)) return { ok: false, error: 'Unknown category.' };
+    const cat = category as StallCategory;
+    if (this.negotiationDay.get(record.profile.id) === this.clock.day) {
+      return { ok: false, error: 'You already haggled with suppliers tonight.' };
+    }
+    this.negotiationDay.set(record.profile.id, this.clock.day);
+
+    // Better reputation means better odds at the wholesale table.
+    const chance = 0.45 + record.profile.reputation / 200;
+    const current = record.profile.supplierPrices[cat] ?? 1;
+    if (Math.random() < chance) {
+      const discount = 0.8 + Math.random() * 0.08;
+      record.profile.supplierPrices[cat] = Math.max(0.55, Math.round(current * discount * 100) / 100);
+      this.notifyRecord(record, {
+        kind: 'success',
+        title: 'Supplier deal struck',
+        message: `Your ${STALL_CATEGORIES[cat].shortName} wholesaler knocked ${Math.round((1 - discount) * 100)}% off today's prices.`,
+      });
+    } else {
+      const markup = 1.04 + Math.random() * 0.04;
+      record.profile.supplierPrices[cat] = Math.min(1.7, Math.round(current * markup * 100) / 100);
+      this.notifyRecord(record, {
+        kind: 'warning',
+        title: 'Haggling backfired',
+        message: `The ${STALL_CATEGORIES[cat].shortName} supplier heard you out — then raised prices a touch.`,
+      });
+    }
+    record.profile.updatedAt = Date.now();
+    this.emitProfile(record);
     void this.saveService.save(this.serializeRecord(record)!);
     return { ok: true, data: record.profile };
   }

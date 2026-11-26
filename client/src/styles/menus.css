@@ -1861,3 +1861,12 @@
 .badge.locked .badge-icon { color: #8d99a6; }
 .badge b { font-size: 11px; color: #f0e6d2; }
 .badge small { font-size: 9px; color: #9aa4b0; line-height: 1.4; }
+
+/* ── Supplier negotiation ────────────────────────────────────────────────── */
+
+.negotiation-strip { border: 1px solid rgba(143, 198, 107, 0.25); border-radius: 14px; background: linear-gradient(150deg, rgba(143, 198, 107, 0.08), rgba(255, 255, 255, 0.02)); padding: 12px 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+.negotiation-copy b { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #d8e8c8; }
+.negotiation-copy b svg { color: #8fc66b; }
+.negotiation-copy span { display: block; margin-top: 4px; font-size: 10px; color: #9aa4b0; line-height: 1.5; }
+.negotiation-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.negotiation-actions .negotiate-btn { border-color: color-mix(in srgb, var(--cat, #8fc66b) 40%, transparent); color: var(--cat, #e8dfc9); }

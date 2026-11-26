@@ -146,6 +146,15 @@ export function registerGameSockets(io: Server, game: GameService): void {
       });
     });
 
+    socket.on('negotiateSupplier', (payload: unknown, ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 600)) return { ok: false, error: 'Slow down a moment.' };
+        const p = (payload ?? {}) as Record<string, unknown>;
+        if (typeof p.category !== 'string') return { ok: false, error: 'Invalid category.' };
+        return game.negotiateSupplier(socket.id, p.category);
+      });
+    });
+
     socket.on('sendCompliment', (payload: unknown, ack: Ack) => {
       safe(ack, () => {
         if (!rateLimit(socket, 900)) return { ok: false, error: 'Slow down a moment.' };

@@ -93,6 +93,10 @@ interface ClientToServerEvents {
     payload: { difficulty: string },
     ack: (result: Ack<PlayerProfile>) => void,
   ) => void;
+  negotiateSupplier: (
+    payload: { category: string },
+    ack: (result: Ack<PlayerProfile>) => void,
+  ) => void;
   sendCompliment: (
     payload: { toId: string; message: string },
     ack: (result: Ack) => void,
@@ -322,6 +326,10 @@ export class NetworkClient {
 
   setDifficulty(difficulty: string): Promise<Ack<PlayerProfile>> {
     return this.emitAck('setDifficulty', { difficulty });
+  }
+
+  negotiateSupplier(category: string): Promise<Ack<PlayerProfile>> {
+    return this.emitAck('negotiateSupplier', { category });
   }
 
   sendCompliment(toId: string, message: string): Promise<Ack> {

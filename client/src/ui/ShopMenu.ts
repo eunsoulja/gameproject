@@ -126,8 +126,31 @@ export class ShopMenu {
       const boost = target.closest<HTMLButtonElement>('[data-boost]');
       if (boost) {
         void this.activateBoost(boost.dataset.boost as PowerUpId);
+        return;
+      }
+
+      const negotiate = target.closest<HTMLButtonElement>('[data-negotiate]');
+      if (negotiate) {
+        void this.negotiate(negotiate.dataset.negotiate!);
       }
     });
+  }
+
+  private async negotiate(category: string): Promise<void> {
+    this.busy = true;
+    try {
+      const result = await this.ctx.network.negotiateSupplier(category);
+      if (!result.ok) {
+        this.ctx.notify.info('No deal tonight', result.error ?? 'The supplier declined.', 'warning');
+      } else if (result.data) {
+        this.ctx.onProfile(result.data);
+        this.refresh(result.data);
+      }
+    } catch {
+      this.ctx.notify.info('No deal tonight', 'The supplier did not answer.', 'warning');
+    } finally {
+      this.busy = false;
+    }
   }
 
   private renderTabs(): void {
@@ -320,6 +343,7 @@ export class ShopMenu {
     );
     if (!radarActive) {
       return `
+        ${this.negotiateStrip()}
         <div class="radar-locked">
           ${icon('radar', 30)}
           <b>Tomorrow's prices are still a whisper</b>
@@ -329,6 +353,7 @@ export class ShopMenu {
       `;
     }
     return `
+      ${this.negotiateStrip()}
       <div class="powerup-info-strip">${icon('radar', 15)}
         <span>Price Radar is live. These indices predict tomorrow's wholesale movement — stock up before a rise.</span>
       </div>
@@ -348,6 +373,23 @@ export class ShopMenu {
             </section>
           `;
         }).join('')}
+      </div>
+    `;
+  }
+
+  private negotiateStrip(): string {
+    return `
+      <div class="negotiation-strip">
+        <div class="negotiation-copy">
+          <b>${icon('hands', 14)} Haggle with a wholesaler</b>
+          <span>Once per night. Better reputation means better odds — win a discount on today's prices, or get pushed back.</span>
+        </div>
+        <div class="negotiation-actions">
+          ${CATEGORY_ORDER.map(
+            (category) =>
+              `<button type="button" class="btn-ghost negotiate-btn" data-negotiate="${category}" style="--cat:${STALL_CATEGORIES[category].color}">${icon(CATEGORY_ICONS[category], 12)} ${STALL_CATEGORIES[category].shortName}</button>`,
+          ).join('')}
+        </div>
       </div>
     `;
   }
