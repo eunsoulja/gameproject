@@ -44,6 +44,7 @@ import { Environment } from './Environment';
 import { FloatingText } from './FloatingText';
 import { RainParticles } from './RainParticles';
 import { Input } from './Input';
+import { JeepneySystem } from './JeepneySystem';
 import { InteractionSystem, type Interactable } from './InteractionSystem';
 import { MarketGenerator } from './MarketGenerator';
 import { Player } from './Player';
@@ -107,6 +108,7 @@ export class Game {
   private offerMenu!: OfferMenu;
   private menuContext!: MenuContext;
   private rain: RainParticles | null = null;
+  private jeepneys: JeepneySystem | null = null;
 
   private profile: PlayerProfile | null = null;
   private profileReceivedAt = 0;
@@ -164,6 +166,8 @@ export class Game {
       this.umbrellas.build();
       this.rain = new RainParticles();
       this.scene.add(this.rain.object);
+      this.jeepneys = new JeepneySystem(this.scene);
+      this.jeepneys.build();
       this.weather.onLightning = () => this.environment?.strike();
       await this.nextFrame();
 
@@ -794,6 +798,8 @@ export class Game {
           : 0;
     this.rain?.setIntensity(rainIntensity);
     this.rain?.update(dt, this.viewCamera.position);
+    this.jeepneys?.setVisible(this.activeEvent?.type !== 'jeepneyStrike');
+    this.jeepneys?.update(dt);
 
     const focus = hasProfile && this.joined && this.player ? this.player.position : this.cinematicFocus;
     this.environment.update(dt, progress, focus, visual);
