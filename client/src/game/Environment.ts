@@ -59,6 +59,8 @@ export class Environment {
   private puddles: THREE.Mesh[] = [];
   private archLights: THREE.Sprite[] = [];
   private eventVisual: EventVisual = 'none';
+  /** Parol lights go up in December. */
+  private festive = new Date().getMonth() === 11;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -654,6 +656,10 @@ export class Environment {
     for (const sprite of this.warmSprites) {
       const material = sprite.material as THREE.SpriteMaterial;
       material.opacity = (0.6 + Math.sin(this.elapsed * 2.4 + sprite.position.z) * 0.055) * flicker;
+      // December parol season — lamp halos drift red and green like festival lights.
+      if (this.festive) {
+        material.color.setHSL(Math.sin(sprite.position.z * 0.7) > 0 ? 0.0 : 0.33, 0.72, 0.6);
+      }
     }
 
     // Slow, low-cost particles drifting through the lamplight.
