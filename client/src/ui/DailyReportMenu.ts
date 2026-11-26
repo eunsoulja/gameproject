@@ -36,6 +36,7 @@ export function openDailyReport(
         <div class="section-label">Day ledger</div>
         <div class="report-breakdown">
           <div class="breakdown-row"><span>Counter sales</span><b style="color:#a9e7b6">+${peso(report.revenue)}</b></div>
+          ${report.bonus > 0 ? `<div class="breakdown-row"><span>Mission bonus</span><b style="color:#ffd98a">+${peso(report.bonus)}</b></div>` : ''}
           ${report.breakdown.map((line) => `
             <div class="breakdown-row">
               <span>${escapeHtml(line.label)}</span>
