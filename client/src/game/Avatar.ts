@@ -32,6 +32,7 @@ export class Avatar {
   private phase = Math.random() * Math.PI * 2;
   private anim: AnimState = 'idle';
   private lean = 0;
+  private emote: string | null = null;
   private colorTargets: Array<{ material: THREE.MeshLambertMaterial; part: AvatarPart }> = [];
   private materials: THREE.Material[] = [];
   private geometries: THREE.BufferGeometry[] = [];
@@ -221,6 +222,15 @@ export class Avatar {
     this.anim = anim;
   }
 
+  /**
+   * Play a one-shot gesture (wave, dance, point, cheer). Pass null to clear.
+   * Driven by `elapsed` so remote players stay roughly in sync.
+   */
+  setEmote(emote: string | null): void {
+    this.emote = emote;
+    if (emote) this.phase = 0;
+  }
+
   /** Drive limb motion from ground speed in metres per second. */
   update(dt: number, elapsed: number, speed = 0): void {
     const moving = speed > 0.08;
@@ -257,13 +267,48 @@ export class Avatar {
     const targetLean = anim === 'run' ? 0.12 : anim === 'walk' ? 0.03 : 0;
     this.lean += (targetLean - this.lean) * Math.min(1, dt * 7);
 
+    const e = this.emote;
+    if (e === 'wave') {
+      // Right arm raised, waving.
+      this.rightArm.rotation.x = -2.4;
+      this.rightArm.rotation.z = -0.5 + Math.sin(elapsed * 10) * 0.35;
+      this.leftArm.rotation.x = -armSwing;
+      this.body.position.y = bob + Math.abs(Math.sin(elapsed * 6)) * 0.02;
+      this.head.rotation.y = 0.15;
+    } else if (e === 'dance') {
+      // Bounce + alternating arm pumps.
+      const t = elapsed * 7;
+      this.rightArm.rotation.x = -1.4 + Math.sin(t) * 0.5;
+      this.leftArm.rotation.x = -1.4 - Math.sin(t) * 0.5;
+      this.leftArm.rotation.z = 0.9;
+      this.rightArm.rotation.z = -0.9;
+      this.body.position.y = bob + Math.abs(Math.sin(t)) * 0.09;
+      this.body.rotation.y = Math.sin(t * 0.5) * 0.18;
+      this.leftLeg.rotation.x = swing * 0.4;
+      this.rightLeg.rotation.x = -swing * 0.4;
+    } else if (e === 'point') {
+      // Right arm extended forward toward something.
+      this.rightArm.rotation.x = -1.35;
+      this.rightArm.rotation.z = -0.15;
+      this.leftArm.rotation.x = -armSwing;
+      this.head.rotation.y = -0.3;
+      this.torso.rotation.y = -0.12;
+    } else if (e === 'cheer') {
+      // Both arms up, little jump bounces.
+      this.leftArm.rotation.x = -2.7;
+      this.rightArm.rotation.x = -2.7;
+      this.leftArm.rotation.z = 0.35;
+      this.rightArm.rotation.z = -0.35;
+      this.body.position.y = bob + Math.abs(Math.sin(elapsed * 9)) * 0.12;
+    } else {
+      this.leftArm.rotation.x = -armSwing;
+      this.rightArm.rotation.x = armSwing;
+      this.leftArm.rotation.z = 0.03;
+      this.rightArm.rotation.z = -0.03;
+    }
+
     this.leftLeg.rotation.x = swing;
     this.rightLeg.rotation.x = -swing;
-    this.leftArm.rotation.x = -armSwing;
-    this.rightArm.rotation.x = armSwing;
-    this.leftArm.rotation.z = 0.03;
-    this.rightArm.rotation.z = -0.03;
-    this.body.position.y = bob;
     this.body.rotation.x = this.lean;
     this.head.rotation.y = anim === 'idle' ? Math.sin(elapsed * 0.7 + this.phase) * 0.1 : 0;
     this.torso.rotation.y = anim === 'idle' ? Math.sin(elapsed * 0.9 + this.phase) * 0.035 : 0;

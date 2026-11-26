@@ -12,6 +12,8 @@ interface RemoteAvatar {
   reputation: number;
   name: string;
   appearanceKey: string;
+  emote: string | null;
+  emoteUntil: number;
   lastSeen: number;
 }
 
@@ -64,6 +66,8 @@ export class RemotePlayers {
         reputation: player.reputation,
         name: player.name,
         appearanceKey,
+        emote: player.emote ?? null,
+        emoteUntil: player.emoteUntil ?? 0,
         lastSeen: performance.now(),
       };
       this.records.set(player.id, record);
@@ -73,6 +77,11 @@ export class RemotePlayers {
     record.target.set(player.x, player.y, player.z);
     record.targetRot = player.rot;
     record.anim = player.anim;
+    if ((player.emote ?? null) !== record.emote || player.emoteUntil !== record.emoteUntil) {
+      record.emote = player.emote ?? null;
+      record.emoteUntil = player.emoteUntil ?? 0;
+      record.avatar.setEmote(record.emote);
+    }
     record.lastSeen = performance.now();
     if (record.appearanceKey !== appearanceKey) {
       record.avatar.setAppearance(player.appearance);
@@ -122,6 +131,10 @@ export class RemotePlayers {
       if (record.anim === 'jump' || record.target.y > 0.1) record.avatar.setAnim('jump');
       else record.avatar.setAnim(record.anim);
       record.avatar.update(dt, elapsed + id.length, record.speed);
+      if (record.emote && record.emoteUntil > 0 && Date.now() > record.emoteUntil) {
+        record.emote = null;
+        record.avatar.setEmote(null);
+      }
 
       // Drop anyone who stopped sending positions and wasn't explicitly removed.
       if (now - record.lastSeen > 25_000) {

@@ -14,6 +14,7 @@ export class Input {
   private interactQueued = false;
   private helpQueued = false;
   private menuKey: string | null = null;
+  private emoteQueued: string | null = null;
   private mobileMoveX = 0;
   private mobileMoveY = 0;
   private mobileSprint = false;
@@ -68,6 +69,10 @@ export class Input {
       if (event.code === 'KeyB') this.menuKey = 'stock';
       if (event.code === 'KeyP') this.menuKey = 'boosts';
       if (event.code === 'KeyT') this.menuKey = 'stats';
+      if (event.code === 'Digit1') this.emoteQueued = 'wave';
+      if (event.code === 'Digit2') this.emoteQueued = 'dance';
+      if (event.code === 'Digit3') this.emoteQueued = 'point';
+      if (event.code === 'Digit4') this.emoteQueued = 'cheer';
     };
     const onKeyUp = (event: KeyboardEvent): void => {
       this.keys.delete(event.code);
@@ -273,6 +278,12 @@ export class Input {
     return value;
   }
 
+  consumeEmote(): string | null {
+    const value = this.emoteQueued;
+    this.emoteQueued = null;
+    return value;
+  }
+
   consumeLook(): LookDelta {
     const delta = { dx: this.lookX, dy: this.lookY };
     this.lookX = 0;
@@ -291,6 +302,7 @@ export class Input {
     this.interactQueued = false;
     this.helpQueued = false;
     this.menuKey = null;
+    this.emoteQueued = null;
     this.wheelDelta = 0;
     this.lookX = 0;
     this.lookY = 0;
