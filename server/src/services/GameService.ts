@@ -704,11 +704,12 @@ export class GameService {
     }
     this.negotiationDay.set(record.profile.id, this.clock.day);
 
-    // Better reputation means better odds at the wholesale table.
-    const chance = 0.45 + record.profile.reputation / 200;
+    // Better reputation means better odds at the wholesale table; Colon
+    // legends also squeeze a deeper discount when they win.
+    const chance = Math.min(0.95, 0.45 + record.profile.reputation / 200);
     const current = record.profile.supplierPrices[cat] ?? 1;
     if (Math.random() < chance) {
-      const discount = 0.8 + Math.random() * 0.08;
+      const discount = 0.8 + Math.random() * 0.08 - Math.min(0.08, record.profile.reputation / 1500);
       record.profile.supplierPrices[cat] = Math.max(0.55, Math.round(current * discount * 100) / 100);
       this.notifyRecord(record, {
         kind: 'success',
@@ -750,7 +751,11 @@ export class GameService {
 
   private maybeSendOffer(now: number): void {
     if (now < this.nextOfferAt) return;
-    this.nextOfferAt = now + OFFER_INTERVAL_MS + Math.random() * 60_000;
+    // Legends of the market get approached more often — reputation literally
+    // brings buyers to your stall.
+    const repBonus = this.onlineRecords().reduce((sum, r) => sum + r.profile.reputation, 0) / Math.max(1, this.onlineRecords().length);
+    const interval = OFFER_INTERVAL_MS * (1 - Math.min(0.35, repBonus / 400));
+    this.nextOfferAt = now + interval + Math.random() * 60_000;
     const online = this.onlineRecords();
     if (online.length < 1) return;
 
