@@ -20,12 +20,27 @@ export class Notifications {
   }
 
   show(payload: NotificationPayload, duration = 5200): void {
-    const existing = this.root.querySelectorAll('.toast');
+    const signature = `${payload.kind}|${payload.title}|${payload.message}`;
+    const existing = this.root.querySelectorAll<HTMLElement>('.toast');
+    for (const el of existing) {
+      if (el.dataset.signature === signature) {
+        // Refresh a repeat notice instead of stacking duplicates.
+        el.classList.remove('leaving');
+        window.clearTimeout(Number(el.dataset.timer ?? 0));
+        const ms = payload.kind === 'event' ? Math.max(duration, 7600) : duration;
+        el.dataset.timer = String(window.setTimeout(() => this.dismiss(el), ms));
+        el.classList.remove('pulse');
+        void el.offsetWidth;
+        el.classList.add('pulse');
+        return;
+      }
+    }
     if (existing.length >= 4) {
-      this.dismiss(existing[0] as HTMLElement);
+      this.dismiss(existing[0]);
     }
     const el = document.createElement('div');
     el.className = `toast ${payload.kind}`;
+    el.dataset.signature = signature;
     el.innerHTML = `
       <div class="toast-icon">${icon(ICON_BY_KIND[payload.kind] ?? 'sparkle', 15)}</div>
       <div class="toast-copy">
@@ -37,7 +52,7 @@ export class Notifications {
     this.root.appendChild(el);
     this.onSound?.(payload.kind);
     const ms = payload.kind === 'event' ? Math.max(duration, 7600) : duration;
-    window.setTimeout(() => this.dismiss(el), ms);
+    el.dataset.timer = String(window.setTimeout(() => this.dismiss(el), ms));
   }
 
   info(title: string, message: string, kind: NotificationPayload['kind'] = 'info'): void {
@@ -46,6 +61,7 @@ export class Notifications {
 
   private dismiss(el: HTMLElement): void {
     if (!el.isConnected || el.classList.contains('leaving')) return;
+    window.clearTimeout(Number(el.dataset.timer ?? 0));
     el.classList.add('leaving');
     window.setTimeout(() => el.remove(), 300);
   }

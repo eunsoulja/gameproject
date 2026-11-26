@@ -730,6 +730,7 @@
   background: var(--toast-accent, #f1b457);
 }
 .toast.leaving { animation: toastOut 0.3s ease both; }
+.toast.pulse { animation: toastIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .toast-icon {
   width: 28px;
   height: 28px;
