@@ -98,6 +98,7 @@ export class Game {
   private floatingText!: FloatingText;
   private pendingCashDelta = 0;
   private cashFlushAt = 0;
+  private saleSoundAt = 0;
   private activeEmote: string | null = null;
   private emoteUntil = 0;
   private lastEmoteSent: string | null = null;
@@ -484,6 +485,10 @@ export class Game {
     if (previous && profile.balance !== previous.balance) {
       this.pendingCashDelta += profile.balance - previous.balance;
       const now = performance.now();
+      if (profile.balance > previous.balance && now - this.saleSoundAt > 1400) {
+        this.saleSoundAt = now;
+        this.audio.sale();
+      }
       if (now - this.cashSoundAt > 7000) {
         this.cashSoundAt = now;
         this.audio.cash();
@@ -836,6 +841,7 @@ export class Game {
       this.crowd.setAtmosphere(progress, visual, this.settings.current.quality);
       const rain = this.weather.isStorm ? 1 : this.weather.isRainy ? 0.65 : 0;
       this.crowd.setRainy(rain > 0);
+      this.player?.avatar.setUmbrella(rain > 0);
       const crowdLevel = visual === 'crowd' ? 1 : this.crowd.activeCount > 28 ? 0.8 : 0.5;
       this.audio.setEnvironment(crowdLevel, rain, progress > 0.72, this.settings.current.reduceMotion);
     }

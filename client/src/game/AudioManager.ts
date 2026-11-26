@@ -167,6 +167,13 @@ export class AudioManager {
     );
   }
 
+  /** Short register ping for each sale batch — lighter than the cash cha-ching. */
+  sale(): void {
+    if (!this.context || !this.started) return;
+    const now = this.context.currentTime;
+    this.tone(now, 1560 + Math.random() * 120, 0.05, 0.028, 'sine');
+  }
+
   /** Low thud when landing from a jump — scaled by impact strength. */
   land(strength: number): void {
     if (!this.context || !this.started) return;
