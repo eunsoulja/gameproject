@@ -14,6 +14,9 @@ export class Input {
   private interactQueued = false;
   private helpQueued = false;
   private menuKey: string | null = null;
+  private muteQueued = false;
+  private fullscreenQueued = false;
+  private resetCameraQueued = false;
   private emoteQueued: string | null = null;
   private mobileMoveX = 0;
   private mobileMoveY = 0;
@@ -73,6 +76,9 @@ export class Input {
       if (event.code === 'Digit2') this.emoteQueued = 'dance';
       if (event.code === 'Digit3') this.emoteQueued = 'point';
       if (event.code === 'Digit4') this.emoteQueued = 'cheer';
+      if (event.code === 'KeyM') this.muteQueued = true;
+      if (event.code === 'KeyF') this.fullscreenQueued = true;
+      if (event.code === 'KeyR') this.resetCameraQueued = true;
     };
     const onKeyUp = (event: KeyboardEvent): void => {
       this.keys.delete(event.code);
@@ -284,6 +290,24 @@ export class Input {
     return value;
   }
 
+  consumeMute(): boolean {
+    const value = this.muteQueued;
+    this.muteQueued = false;
+    return value;
+  }
+
+  consumeFullscreen(): boolean {
+    const value = this.fullscreenQueued;
+    this.fullscreenQueued = false;
+    return value;
+  }
+
+  consumeResetCamera(): boolean {
+    const value = this.resetCameraQueued;
+    this.resetCameraQueued = false;
+    return value;
+  }
+
   consumeLook(): LookDelta {
     const delta = { dx: this.lookX, dy: this.lookY };
     this.lookX = 0;
@@ -303,6 +327,9 @@ export class Input {
     this.helpQueued = false;
     this.menuKey = null;
     this.emoteQueued = null;
+    this.muteQueued = false;
+    this.fullscreenQueued = false;
+    this.resetCameraQueued = false;
     this.wheelDelta = 0;
     this.lookX = 0;
     this.lookY = 0;

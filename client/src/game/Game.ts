@@ -104,6 +104,7 @@ export class Game {
   private emoteUntil = 0;
   private lastEmoteSent: string | null = null;
   private onboarded = false;
+  private muted = false;
   private earnedBadges = new Set<string>();
   private upgradeMenu!: UpgradeMenu;
   private shopMenu!: ShopMenu;
@@ -718,7 +719,8 @@ export class Game {
   }
 
   private applySettings(settings: GameSettings): void {
-    this.audio.setVolumes(settings.masterVolume, settings.ambienceVolume, settings.effectsVolume);
+    const master = settings.masterVolume * (this.muted ? 0 : 1);
+    this.audio.setVolumes(master, settings.ambienceVolume * (this.muted ? 0 : 1), settings.effectsVolume * (this.muted ? 0 : 1));
     if (this.environment) this.environment.applyQuality(settings.quality);
     if (this.renderer) {
       const ratio = Math.min(window.devicePixelRatio || 1, settings.quality === 'low' ? 1 : settings.quality === 'medium' ? 1.5 : 2);
@@ -770,6 +772,9 @@ export class Game {
     const help = this.input.consumeHelp();
     const menuKey = this.input.consumeMenuKey();
     const emote = this.input.consumeEmote();
+    const mute = this.input.consumeMute();
+    const fullscreen = this.input.consumeFullscreen();
+    const resetCam = this.input.consumeResetCamera();
     const hasProfile = !!this.profile && !!this.player;
     const progress = this.profile
       ? currentProgress(this.profile, this.profileReceivedAt)
@@ -778,6 +783,21 @@ export class Game {
 
     if (hasProfile && this.joined) {
       this.input.setEnabled(!blocked);
+      if (mute) {
+        this.muted = !this.muted;
+        this.applySettings(this.settings.current);
+        this.notifications?.show(
+          { kind: 'info', title: this.muted ? 'Sound muted' : 'Sound on', message: '' },
+          2000,
+        );
+      }
+      if (fullscreen) {
+        if (document.fullscreenElement) void document.exitFullscreen();
+        else void document.documentElement.requestFullscreen().catch(() => undefined);
+      }
+      if (resetCam) {
+        window.dispatchEvent(new CustomEvent('merkado:reset-camera'));
+      }
       if (!blocked) {
         this.cameraRig.rotate(look.dx, look.dy, this.settings.current.sensitivity, this.settings.current.invertDrag);
         this.cameraRig.zoom(wheel);
