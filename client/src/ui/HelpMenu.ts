@@ -32,7 +32,15 @@ export function openHelpMenu(): void {
           </div>
           <div class="help-card">
             <b>${icon('monitor', 14)} Controls</b>
-            <p><b>WASD</b> walk · <b>Shift</b> run · <b>Space</b> jump · <b>E</b> interact · drag mouse to look · scroll to zoom. On mobile use the joystick and action buttons.</p>
+            <p><b>WASD</b> walk · <b>Shift</b> run · <b>Space</b> jump · <b>E</b> interact · drag mouse to look · scroll to zoom. Panels: <b>B</b> stock · <b>P</b> power-ups · <b>T</b> ledger · <b>H</b> this help. Emotes: <b>1–4</b> wave, dance, point, cheer.</p>
+          </div>
+          <div class="help-card">
+            <b>${icon('suki', 14)} Suki & missions</b>
+            <p>Regulars remember your stall — keep prices fair and they'll return with bulk orders you can accept or decline. A nightly mission pays bonus cash at closing.</p>
+          </div>
+          <div class="help-card">
+            <b>${icon('hands', 14)} Neighborly market</b>
+            <p>Visit other bays to see their stalls, send compliments and pick a pace — chill, standard or hustle — in Settings. Export your save there too.</p>
           </div>
           <div class="help-card">
             <b>${icon('calendar', 14)} The market day</b>
