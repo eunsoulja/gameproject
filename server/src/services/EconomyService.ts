@@ -18,6 +18,7 @@ import {
 } from '../../../shared/config';
 import type {
   Appearance,
+  DailyQuest,
   DailyReport,
   PlayerProfile,
   SukiCustomer,
@@ -181,7 +182,7 @@ export function normalizeProfile(input: PlayerProfile): PlayerProfile {
   profile.nextDayEvent = profile.nextDayEvent ?? null;
   profile.suki = Array.isArray(profile.suki) ? profile.suki.slice(0, 14) : [];
   profile.lastSukiNoticeAt = Number(profile.lastSukiNoticeAt) || 0;
-  profile.quest = profile.quest ?? null;
+  profile.quest = profile.quest && typeof profile.quest.day === 'number' ? profile.quest : null;
   profile.difficulty =
     profile.difficulty === 'chill' || profile.difficulty === 'hustle' ? profile.difficulty : 'standard';
   profile.updatedAt = profile.updatedAt || Date.now();
@@ -376,6 +377,7 @@ export function simulateSales(
     (0.58 + profile.reputation * 0.0075 + (profile.stallCount - 1) * 0.28) *
     traffic *
     timeModifier *
+    difficultyTraffic(profile) *
     rand(0.72, 1.28);
 
   let serviceLeft = serviceCapacity(profile, now);
@@ -467,6 +469,8 @@ export function simulateSales(
     recordSukiVisit(profile, now, notices);
   }
 
+  updateQuestProgress(profile, result.sold, result.revenue, result.customers, notices);
+
   // Low-stock warning (one shared throttle lives in GameService).
   for (const category of soldOut) {
     const name = STALL_CATEGORIES[category].shortName;
@@ -533,6 +537,101 @@ function recordSukiVisit(profile: PlayerProfile, now: number, notices: EconomyNo
       ? `${suki.name} loves your ${favorite.name} — visits counted: ${suki.visits}.`
       : `${suki.name} stopped by your stall. Word travels at the mercado.`,
   });
+}
+
+// ── Daily quests ────────────────────────────────────────────────────────────
+
+interface QuestTemplate {
+  id: string;
+  label: (target: number) => string;
+  target: (day: number) => number;
+  reward: (target: number) => number;
+  metric: 'sold' | 'revenue' | 'customers';
+}
+
+const QUEST_TEMPLATES: QuestTemplate[] = [
+  {
+    id: 'sales-volume',
+    label: (t) => `Sell ${t} items at your stall`,
+    target: (day) => Math.min(60, 10 + day * 3),
+    reward: (t) => 90 + t * 5,
+    metric: 'sold',
+  },
+  {
+    id: 'take-home',
+    label: (t) => `Earn ₱${t.toLocaleString('en-PH')} in sales today`,
+    target: (day) => Math.min(6000, 500 + day * 260),
+    reward: (t) => Math.round(t * 0.22),
+    metric: 'revenue',
+  },
+  {
+    id: 'serve-crowd',
+    label: (t) => `Serve ${t} customers tonight`,
+    target: (day) => Math.min(48, 8 + day * 2),
+    reward: (t) => 80 + t * 6,
+    metric: 'customers',
+  },
+];
+
+/** Deal a fresh quest for the given market day. */
+export function rollDailyQuest(profile: PlayerProfile, day: number): DailyQuest {
+  const template = pick(QUEST_TEMPLATES);
+  const target = template.target(day);
+  return {
+    id: template.id,
+    day,
+    label: template.label(target),
+    target,
+    progress: 0,
+    reward: template.reward(target),
+    done: false,
+    paid: false,
+  };
+}
+
+/** If the vendor has no quest for the current day, deal one. */
+export function ensureQuest(profile: PlayerProfile, day: number): void {
+  if (!profile.quest || profile.quest.day !== day || profile.quest.paid) {
+    profile.quest = rollDailyQuest(profile, day);
+  }
+}
+
+/** Fold this tick's sales into the active quest. */
+function updateQuestProgress(
+  profile: PlayerProfile,
+  sold: number,
+  revenue: number,
+  customers: number,
+  notices: EconomyNotice[],
+): void {
+  const quest = profile.quest;
+  if (!quest || quest.done) return;
+  const template = QUEST_TEMPLATES.find((t) => t.id === quest.id);
+  if (!template) return;
+  quest.progress = Math.min(
+    quest.target,
+    quest.progress + (template.metric === 'sold' ? sold : template.metric === 'revenue' ? revenue : customers),
+  );
+  if (quest.progress >= quest.target) {
+    quest.done = true;
+    notices.push({
+      kind: 'success',
+      title: 'Daily quest complete',
+      message: `${quest.label} — collect ₱${quest.reward} when the market closes.`,
+    });
+  }
+}
+
+function difficultyTraffic(profile: PlayerProfile): number {
+  if (profile.difficulty === 'chill') return 0.85;
+  if (profile.difficulty === 'hustle') return 1.18;
+  return 1;
+}
+
+function difficultyCost(profile: PlayerProfile): number {
+  if (profile.difficulty === 'chill') return 0.85;
+  if (profile.difficulty === 'hustle') return 1.15;
+  return 1;
 }
 
 // ── End of day ──────────────────────────────────────────────────────────────
@@ -606,7 +705,7 @@ export function endDay(profile: PlayerProfile, now: number, activeEvent: ActiveE
   const setup = hasUpgrade(profile, 'permanentKiosk') ? 0 : 40;
   const maintenance = 12 * profile.stallCount + 4 * profile.unlockedCategories.length;
   const wages = dailyWages(profile);
-  const fixedCost = setup + maintenance + wages;
+  const fixedCost = Math.round((setup + maintenance + wages) * difficultyCost(profile));
   const charged = Math.min(profile.balance, fixedCost);
   profile.balance -= charged;
   profile.today.expenses += charged;
@@ -650,12 +749,31 @@ export function endDay(profile: PlayerProfile, now: number, activeEvent: ActiveE
   if (spoiled > 0) reportsNotes.push(`${spoiled} items lost to spoilage.`);
   if (profile.today.productsSold === 0) reportsNotes.push('No sales recorded — check your stock and prices.');
 
+  // Daily quest payout.
+  let questBonus = 0;
+  const quest = profile.quest;
+  if (quest && quest.done && !quest.paid) {
+    quest.paid = true;
+    questBonus = quest.reward;
+    profile.balance += questBonus;
+    profile.lifetime.totalEarnings += questBonus;
+    profile.reputation = clamp(profile.reputation + 1.5, 0, 100);
+    breakdown.push({ label: `Quest reward — ${quest.label}`, amount: questBonus });
+    reportsNotes.push(`Quest complete: ${quest.label} (+₱${questBonus.toLocaleString('en-PH')}).`);
+    notices.push({
+      kind: 'success',
+      title: 'Quest reward collected',
+      message: `${quest.label} — ₱${questBonus.toLocaleString('en-PH')} added to your till.`,
+    });
+  }
+
   const report: DailyReport = {
     day: profile.day,
     dateLabel: dateForDay(profile.day),
     revenue: profile.today.revenue,
     expenses: profile.today.expenses,
-    net: profile.today.revenue - profile.today.expenses,
+    bonus: questBonus,
+    net: profile.today.revenue - profile.today.expenses + questBonus,
     productsSold: profile.today.productsSold,
     customers: profile.today.customers,
     spoiled: profile.today.spoiled,

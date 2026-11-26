@@ -42,6 +42,7 @@ export interface DailyReport {
   dateLabel: string;
   revenue: number;
   expenses: number;
+  bonus: number;
   net: number;
   productsSold: number;
   customers: number;
@@ -64,6 +65,7 @@ export interface SukiCustomer {
 
 export interface DailyQuest {
   id: string;
+  day: number;
   label: string;
   target: number;
   progress: number;
