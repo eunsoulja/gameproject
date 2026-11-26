@@ -464,7 +464,7 @@ export class PlotManager {
     stockMesh.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
     stockMesh.renderOrder = 2;
     base.group.add(stockMesh);
-    base.group.userData.stockBoard = { canvas: stockCanvas, texture: stockTexture };
+    base.group.userData.stockBoard = { canvas: stockCanvas, texture: stockTexture, mesh: stockMesh };
     this.redrawStockBoard(stockCanvas, stockTexture, profile);
 
     this.addUpgradeDressing(base, new Set(Object.values(profile.chosenUpgrades)), true);
@@ -792,11 +792,18 @@ export class PlotManager {
   updateStock(profile: PlayerProfile): void {
     const view = this.views[this.ownIndex];
     const board = view?.group?.userData.stockBoard as
-      | { canvas: HTMLCanvasElement; texture: THREE.Texture }
+      | { canvas: HTMLCanvasElement; texture: THREE.Texture; mesh?: THREE.Mesh }
       | undefined;
     if (!board) return;
+    // A sale visibly "pops" the board — inventory shrinking flashes it briefly.
+    const total = Object.values(profile.inventory).reduce((sum, n) => sum + (n ?? 0), 0);
+    if (this.lastStockTotal !== null && total < this.lastStockTotal) this.stockFlash = 1;
+    this.lastStockTotal = total;
     this.redrawStockBoard(board.canvas, board.texture as THREE.CanvasTexture, profile);
   }
+
+  private lastStockTotal: number | null = null;
+  private stockFlash = 0;
 
   private redrawStockBoard(
     canvas: HTMLCanvasElement,
@@ -971,6 +978,15 @@ export class PlotManager {
       for (let i = 0; i < view.padGlow.length; i++) {
         const material = view.padGlow[i].material as THREE.MeshBasicMaterial;
         if (material) material.opacity = 0.68 + 0.22 * Math.sin(elapsed * 2.4 + i * 1.4);
+      }
+    }
+    // Stock board pops when a sale lands.
+    if (this.stockFlash > 0) {
+      this.stockFlash = Math.max(0, this.stockFlash - dt * 2.2);
+      const mesh = this.views[this.ownIndex]?.group?.userData.stockBoard?.mesh as THREE.Mesh | undefined;
+      if (mesh) {
+        const s = 1 + this.stockFlash * 0.16;
+        mesh.scale.set(s, s, 1);
       }
     }
   }
