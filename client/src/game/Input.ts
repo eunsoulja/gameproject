@@ -13,6 +13,7 @@ export class Input {
   private jumpQueued = false;
   private interactQueued = false;
   private helpQueued = false;
+  private menuKey: string | null = null;
   private mobileMoveX = 0;
   private mobileMoveY = 0;
   private mobileSprint = false;
@@ -64,6 +65,9 @@ export class Input {
       if (event.code === 'KeyE') this.interactQueued = true;
       if (event.code === 'KeyH') this.helpQueued = true;
       if (event.code === 'Space') this.jumpQueued = true;
+      if (event.code === 'KeyB') this.menuKey = 'stock';
+      if (event.code === 'KeyP') this.menuKey = 'boosts';
+      if (event.code === 'KeyT') this.menuKey = 'stats';
     };
     const onKeyUp = (event: KeyboardEvent): void => {
       this.keys.delete(event.code);
@@ -263,6 +267,12 @@ export class Input {
     return value;
   }
 
+  consumeMenuKey(): string | null {
+    const value = this.menuKey;
+    this.menuKey = null;
+    return value;
+  }
+
   consumeLook(): LookDelta {
     const delta = { dx: this.lookX, dy: this.lookY };
     this.lookX = 0;
@@ -280,6 +290,7 @@ export class Input {
     this.jumpQueued = false;
     this.interactQueued = false;
     this.helpQueued = false;
+    this.menuKey = null;
     this.wheelDelta = 0;
     this.lookX = 0;
     this.lookY = 0;

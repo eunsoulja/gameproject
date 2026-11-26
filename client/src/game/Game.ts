@@ -668,6 +668,7 @@ export class Game {
     const jump = this.input.consumeJump();
     const interact = this.input.consumeInteract();
     const help = this.input.consumeHelp();
+    const menuKey = this.input.consumeMenuKey();
     const hasProfile = !!this.profile && !!this.player;
     const progress = this.profile
       ? currentProgress(this.profile, this.profileReceivedAt)
@@ -682,6 +683,16 @@ export class Game {
         if (help) {
           this.audio.click();
           openHelpMenu();
+        }
+        if (menuKey === 'stock') {
+          this.audio.click();
+          this.shopMenu.open('stock');
+        } else if (menuKey === 'boosts') {
+          this.audio.click();
+          this.shopMenu.open('boosts');
+        } else if (menuKey === 'stats') {
+          this.audio.click();
+          this.statsMenu.open();
         }
       }
       const intent = blocked
