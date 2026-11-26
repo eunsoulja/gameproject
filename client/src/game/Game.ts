@@ -36,6 +36,7 @@ import { BuildingGenerator } from './BuildingGenerator';
 import { CollisionSystem } from './CollisionSystem';
 import { CrowdSystem } from './CrowdSystem';
 import { Environment } from './Environment';
+import { FloatingText } from './FloatingText';
 import { Input } from './Input';
 import { InteractionSystem, type Interactable } from './InteractionSystem';
 import { MarketGenerator } from './MarketGenerator';
@@ -85,6 +86,9 @@ export class Game {
   private login!: LoginScreen;
   private hud!: HUD;
   private notifications!: Notifications;
+  private floatingText!: FloatingText;
+  private pendingCashDelta = 0;
+  private cashFlushAt = 0;
   private upgradeMenu!: UpgradeMenu;
   private shopMenu!: ShopMenu;
   private statsMenu!: StatsMenu;
@@ -289,6 +293,8 @@ export class Game {
     });
     this.hud.hide();
     this.interaction = new InteractionSystem(this.hud);
+    const floatRoot = document.getElementById('float-text-root');
+    this.floatingText = new FloatingText(floatRoot ?? toastRoot, this.viewCamera);
     this.login = new LoginScreen(loginRoot, (payload) => this.handleLogin(payload));
   }
 
@@ -442,13 +448,31 @@ export class Game {
     this.refreshInteractions();
     this.remotePlayers.setSelfId(profile.id);
 
-    if (previous && profile.balance > previous.balance) {
+    if (previous && profile.balance !== previous.balance) {
+      this.pendingCashDelta += profile.balance - previous.balance;
       const now = performance.now();
       if (now - this.cashSoundAt > 7000) {
         this.cashSoundAt = now;
         this.audio.cash();
       }
     }
+    if (this.pendingCashDelta !== 0 && Date.now() >= this.cashFlushAt) {
+      this.flushCashFloat();
+    }
+  }
+
+  private flushCashFloat(): void {
+    const delta = this.pendingCashDelta;
+    this.pendingCashDelta = 0;
+    this.cashFlushAt = Date.now() + 1400;
+    if (Math.abs(delta) < 5 || !this.plotManager) return;
+    const own = this.plotManager.getStallPoints().find((point) => point.isSelf);
+    if (!own) return;
+    const at = own.center.clone();
+    at.y = 2.6;
+    at.x += (Math.random() - 0.5) * 0.8;
+    at.z += (Math.random() - 0.5) * 0.8;
+    this.floatingText.cash(delta, at);
   }
 
   private handlePlots(plots: PublicPlot[]): void {
