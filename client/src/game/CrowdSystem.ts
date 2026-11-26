@@ -17,6 +17,7 @@ interface Customer {
   faceYaw: number;
   active: boolean;
   bob: number;
+  hasUmbrella: boolean;
 }
 
 const SHIRTS = ['#d9534a', '#3f8ccc', '#f0b64c', '#63a56c', '#9a66c4', '#ef8a52', '#ede3cc', '#3d4a5e', '#c56c93', '#5fb3a8'];
@@ -37,6 +38,7 @@ export class CrowdSystem {
   private ownInward = 1;
   private ownConfigured = false;
   private eventVisual: EventVisual = 'none';
+  private rainy = false;
   private progress = START_PROGRESS;
   private built = false;
 
@@ -65,6 +67,15 @@ export class CrowdSystem {
   setQuality(quality: QualitySetting): void {
     this.quality = quality;
     this.applyDensity();
+  }
+
+  /** Reveal hand umbrellas on roughly two-fifths of the crowd when it rains. */
+  setRainy(on: boolean): void {
+    if (this.rainy === on) return;
+    this.rainy = on;
+    for (const customer of this.customers) {
+      customer.avatar.setUmbrella(on && customer.hasUmbrella);
+    }
   }
 
   setAtmosphere(progress: number, eventVisual: EventVisual, quality: QualitySetting): void {
@@ -112,6 +123,7 @@ export class CrowdSystem {
       faceYaw: 0,
       active: false,
       bob: index * 0.13,
+      hasUmbrella: index % 5 < 2,
     };
   }
 

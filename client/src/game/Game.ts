@@ -809,6 +809,7 @@ export class Game {
       this.atmosphereTimer = 0.7;
       this.crowd.setAtmosphere(progress, visual, this.settings.current.quality);
       const rain = this.weather.isStorm ? 1 : this.weather.isRainy ? 0.65 : 0;
+      this.crowd.setRainy(rain > 0);
       const crowdLevel = visual === 'crowd' ? 1 : this.crowd.activeCount > 28 ? 0.8 : 0.5;
       this.audio.setEnvironment(crowdLevel, rain, progress > 0.72, this.settings.current.reduceMotion);
     }

@@ -12,6 +12,7 @@ export class CrowdAvatar {
   private geometry: THREE.BufferGeometry;
   private material: THREE.MeshLambertMaterial;
   private phase = Math.random() * Math.PI * 2;
+  private umbrellaGroup: THREE.Group;
 
   constructor(appearance: Appearance, scale = 1) {
     const parts: THREE.BufferGeometry[] = [];
@@ -60,8 +61,40 @@ export class CrowdAvatar {
     this.mesh.castShadow = false;
     this.mesh.receiveShadow = false;
     this.root.add(this.mesh);
+    this.umbrellaGroup = this.buildUmbrella();
+    this.root.add(this.umbrellaGroup);
     this.root.scale.setScalar(scale);
     this.phase = Math.random() * Math.PI * 2;
+  }
+
+  /** A compact hand umbrella held above the head — revealed when it rains. */
+  private buildUmbrella(): THREE.Group {
+    const group = new THREE.Group();
+    const canopyColors = ['#d9534a', '#3f8ccc', '#f0b64c', '#63a56c', '#9a66c4'];
+    const color = canopyColors[Math.floor(Math.random() * canopyColors.length)];
+    const canopy = new THREE.Mesh(
+      new THREE.ConeGeometry(0.52, 0.3, 8),
+      new THREE.MeshLambertMaterial({ color }),
+    );
+    canopy.position.y = 2.28;
+    const tip = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.015, 0.85, 5),
+      new THREE.MeshLambertMaterial({ color: '#3a3f45' }),
+    );
+    tip.position.y = 1.85;
+    const handle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.4, 5),
+      new THREE.MeshLambertMaterial({ color: '#57402a' }),
+    );
+    handle.position.set(0.18, 1.62, 0.1);
+    handle.rotation.z = 0.25;
+    group.add(canopy, tip, handle);
+    group.visible = false;
+    return group;
+  }
+
+  setUmbrella(on: boolean): void {
+    this.umbrellaGroup.visible = on;
   }
 
   get position(): THREE.Vector3 {
@@ -84,6 +117,13 @@ export class CrowdAvatar {
   dispose(): void {
     this.geometry.dispose();
     this.material.dispose();
+    this.umbrellaGroup.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      }
+    });
     this.root.removeFromParent();
   }
 }
