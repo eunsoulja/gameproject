@@ -101,6 +101,7 @@ export class Game {
   private activeEmote: string | null = null;
   private emoteUntil = 0;
   private lastEmoteSent: string | null = null;
+  private onboarded = false;
   private upgradeMenu!: UpgradeMenu;
   private shopMenu!: ShopMenu;
   private statsMenu!: StatsMenu;
@@ -478,6 +479,7 @@ export class Game {
     this.plotManager.updateStock(profile);
     this.refreshInteractions();
     this.remotePlayers.setSelfId(profile.id);
+    this.maybeOnboard(profile, previous);
 
     if (previous && profile.balance !== previous.balance) {
       this.pendingCashDelta += profile.balance - previous.balance;
@@ -490,6 +492,25 @@ export class Game {
     if (this.pendingCashDelta !== 0 && Date.now() >= this.cashFlushAt) {
       this.flushCashFloat();
     }
+  }
+
+  /** First-night walkthrough — a short toast chain teaching the loop once. */
+  private maybeOnboard(profile: PlayerProfile, previous: PlayerProfile | null): void {
+    if (this.onboarded || profile.lifetime.daysPlayed > 0 || profile.day > 1) return;
+    this.onboarded = true;
+    const steps: Array<[number, string, string]> = [
+      [900, 'Welcome to Colon', 'Walk to the glowing pads by your stall and press E to restock and set prices.'],
+      [7000, 'The evening rush is coming', 'Shoppers appear as the clock moves — keep shelves full and prices fair.'],
+      [14000, 'Keys to remember', 'B stock · P power-ups · T ledger · 1–4 emotes. Drag to look around.'],
+    ];
+    for (const [delay, title, message] of steps) {
+      window.setTimeout(() => {
+        if (this.profile?.id === profile.id) {
+          this.notifications?.show({ kind: 'info', title, message }, 7000);
+        }
+      }, delay);
+    }
+    void previous;
   }
 
   private flushCashFloat(): void {
