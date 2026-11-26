@@ -769,3 +769,71 @@ export const SHOP_NAMES = [
   'Aling Nena’s', 'Danggit ni Tatay', 'Manggo Avenue', 'Puso ni Inday', 'Siomai sa Tisa',
   'Ukay ni Ate Vi', 'Cebu Pasalubong', 'Lechon Belly', 'Sari-Sari ni Kuya', 'Fruit Stand ni Lolo',
 ];
+
+export interface AchievementDef {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  /** Returns true when the profile has earned the badge. */
+  check: (p: import('./types').PlayerProfile) => boolean;
+}
+
+export const ACHIEVEMENTS: AchievementDef[] = [
+  {
+    id: 'first-sale',
+    title: 'Unang Benta',
+    description: 'Make your very first sale on Colon Street.',
+    icon: 'coin',
+    check: (p) => p.lifetime.totalProductsSold >= 1,
+  },
+  {
+    id: 'century',
+    title: 'Suking Century',
+    description: 'Earn ₱100,000 in lifetime revenue.',
+    icon: 'trophy',
+    check: (p) => p.lifetime.totalRevenue >= 100_000,
+  },
+  {
+    id: 'big-day',
+    title: 'Sobrang Araw',
+    description: 'Take home ₱5,000 net in a single day.',
+    icon: 'star',
+    check: (p) => p.reports.some((r) => r.net >= 5_000),
+  },
+  {
+    id: 'regulars',
+    title: 'May Suki Na',
+    description: 'Have 5 regular customers return to your stall.',
+    icon: 'users',
+    check: (p) => p.suki.length >= 5,
+  },
+  {
+    id: 'builder',
+    title: 'Maringal na Tindahan',
+    description: 'Install 8 upgrades across your stall.',
+    icon: 'shelf',
+    check: (p) => Object.keys(p.chosenUpgrades).length >= 8,
+  },
+  {
+    id: 'week-one',
+    title: 'Isang Linggo na Merkado',
+    description: 'Keep your stall open for 7 days.',
+    icon: 'calendar',
+    check: (p) => p.lifetime.daysPlayed >= 7,
+  },
+  {
+    id: 'typhoon-survivor',
+    title: 'Bagyo Survivor',
+    description: 'Stay open through a typhoon event.',
+    icon: 'shield',
+    check: (p) => p.reports.some((r) => r.notes.some((n) => /typhoon|bagyo/i.test(n))),
+  },
+  {
+    id: 'legend',
+    title: 'Colon Legend',
+    description: 'Reach 90 reputation with the whole market.',
+    icon: 'parol',
+    check: (p) => p.reputation >= 90,
+  },
+];

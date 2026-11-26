@@ -1,4 +1,4 @@
-import { GOALS, PRODUCTS, upgradeById } from '../../../shared/config';
+import { ACHIEVEMENTS, GOALS, PRODUCTS, upgradeById } from '../../../shared/config';
 import type { PlayerProfile } from '../../../shared/types';
 import { openModal } from './Modal';
 import { escapeHtml, peso } from './format';
@@ -243,6 +243,26 @@ export class StatsMenu {
           </section>`
               : ''
           }
+
+          <section class="ledger-card ledger-badges">
+            <div class="ledger-card-head">
+              <div class="ledger-card-title">
+                <span class="ledger-card-icon" style="--c:#f0c14c">${icon('award', 16)}</span>
+                <div><b>Badges</b><small>Milestones earned on Colon Street</small></div>
+              </div>
+              <span class="ledger-card-meta">${ACHIEVEMENTS.filter((a) => a.check(profile)).length}/${ACHIEVEMENTS.length}</span>
+            </div>
+            <div class="badge-grid">
+              ${ACHIEVEMENTS.map((a) => {
+                const earned = a.check(profile);
+                return `<div class="badge ${earned ? 'earned' : 'locked'}" title="${escapeHtml(a.description)}">
+                  <span class="badge-icon">${icon(a.icon, 18)}</span>
+                  <b>${escapeHtml(a.title)}</b>
+                  <small>${earned ? escapeHtml(a.description) : 'Not yet earned'}</small>
+                </div>`;
+              }).join('')}
+            </div>
+          </section>
 
           <section class="ledger-card ledger-suki">
             <div class="ledger-card-head">

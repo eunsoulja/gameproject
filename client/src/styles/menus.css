@@ -1850,3 +1850,14 @@
 .quest-state { font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: #d5a35e; font-weight: 800; }
 .visit-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .setting-note { font-size: 9.5px; color: #8d99a6; line-height: 1.5; margin-top: 8px; }
+
+/* ── Achievement badges ──────────────────────────────────────────────────── */
+
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 12px 14px 14px; }
+.badge { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.025); transition: border-color 0.2s; }
+.badge.earned { border-color: rgba(240, 193, 76, 0.4); background: linear-gradient(150deg, rgba(240, 193, 76, 0.1), rgba(255, 255, 255, 0.02)); }
+.badge.locked { opacity: 0.45; filter: grayscale(0.6); }
+.badge-icon { color: #f0c14c; display: flex; }
+.badge.locked .badge-icon { color: #8d99a6; }
+.badge b { font-size: 11px; color: #f0e6d2; }
+.badge small { font-size: 9px; color: #9aa4b0; line-height: 1.4; }
