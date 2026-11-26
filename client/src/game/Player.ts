@@ -36,6 +36,7 @@ export class Player {
   private shadow: THREE.Mesh;
   private facingTarget = 0;
   private jumpBuffer = 0;
+  private landingImpulse = 0;
   private coyoteTimer = 0;
   private bob = 0;
   onFootstep: (() => void) | null = null;
@@ -148,6 +149,8 @@ export class Player {
     this.vertical -= GRAVITY * dt;
     this.position.y += this.vertical * dt;
     if (this.position.y <= 0) {
+      const impact = -this.vertical;
+      if (impact > 4.5) this.landingImpulse = Math.min(1, (impact - 4.5) / 6);
       this.position.y = 0;
       this.vertical = 0;
       this.grounded = true;
@@ -219,6 +222,13 @@ export class Player {
 
   get facing(): THREE.Vector3 {
     return new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+  }
+
+  /** Returns and clears the landing impulse (0–1) from the last hard touchdown. */
+  consumeLanding(): number {
+    const value = this.landingImpulse;
+    this.landingImpulse = 0;
+    return value;
   }
 
   get positionPayload(): { x: number; y: number; z: number; rot: number; anim: PlayerAnim } {

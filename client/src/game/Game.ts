@@ -759,6 +759,11 @@ export class Game {
         ? { x: 0, y: 0, sprint: false, jump: false }
         : { x: this.input.movement.x, y: this.input.movement.y, sprint: this.input.sprint, jump };
       this.player!.update(dt, this.elapsed, intent, this.cameraRig.yaw, this.collision);
+      const landing = this.player!.consumeLanding();
+      if (landing > 0) {
+        this.cameraRig.shake(0.16 * landing, 0.28);
+        this.audio.land(landing);
+      }
       if (this.elapsed > this.emoteUntil) this.activeEmote = null;
       const payload = this.player!.positionPayload;
       if (this.activeEmote !== this.lastEmoteSent) {

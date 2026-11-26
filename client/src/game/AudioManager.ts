@@ -167,6 +167,15 @@ export class AudioManager {
     );
   }
 
+  /** Low thud when landing from a jump — scaled by impact strength. */
+  land(strength: number): void {
+    if (!this.context || !this.started) return;
+    const now = this.context.currentTime;
+    const s = Math.min(1, strength);
+    this.tone(now, 95 + s * 30, 0.14, 0.09 * s + 0.02, 'sine');
+    this.noiseBurst(now, 0.07, 480, 0.05 * s + 0.015, 0);
+  }
+
   click(): void {
     if (!this.context || !this.started) return;
     const now = this.context.currentTime;
