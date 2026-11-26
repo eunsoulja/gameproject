@@ -5,6 +5,7 @@ import type {
   DayReportPayload,
   GameSnapshot,
   JoinResult,
+  MarketOffer,
   NotificationPayload,
   PlayerProfile,
   PositionPayload,
@@ -24,6 +25,8 @@ export interface NetworkHandlers {
   onNotification: (notification: NotificationPayload) => void;
   onDayReport: (payload: DayReportPayload) => void;
   onMarketEvent: (event: ActiveEventState | null) => void;
+  onOffer: (offer: MarketOffer) => void;
+  onOfferResolved: (payload: { id: string; accepted: boolean }) => void;
   onOnlineCount: (count: number) => void;
   onStatus: (state: ConnectionState, message?: string) => void;
   onForceLogout: (reason: string) => void;
@@ -46,6 +49,8 @@ interface ServerToClientEvents {
   notification: (payload: NotificationPayload) => void;
   dayReport: (payload: DayReportPayload) => void;
   marketEvent: (event: ActiveEventState | null) => void;
+  offer: (offer: MarketOffer) => void;
+  offerResolved: (payload: { id: string; accepted: boolean }) => void;
   onlineCount: (count: number) => void;
   forceLogout: (payload: { reason: string }) => void;
 }
@@ -78,6 +83,22 @@ interface ClientToServerEvents {
   ) => void;
   setAppearance: (
     payload: Appearance,
+    ack: (result: Ack<PlayerProfile>) => void,
+  ) => void;
+  respondOffer: (
+    payload: { id: string; accept: boolean },
+    ack: (result: Ack<PlayerProfile>) => void,
+  ) => void;
+  setDifficulty: (
+    payload: { difficulty: string },
+    ack: (result: Ack<PlayerProfile>) => void,
+  ) => void;
+  sendCompliment: (
+    payload: { toId: string; message: string },
+    ack: (result: Ack) => void,
+  ) => void;
+  importSave: (
+    payload: { save: unknown },
     ack: (result: Ack<PlayerProfile>) => void,
   ) => void;
   requestSnapshot: (ack: (result: Ack<GameSnapshot>) => void) => void;
@@ -227,6 +248,8 @@ export class NetworkClient {
     socket.on('notification', (payload) => this.handlers.onNotification(payload));
     socket.on('dayReport', (payload) => this.handlers.onDayReport(payload));
     socket.on('marketEvent', (event) => this.handlers.onMarketEvent(event));
+    socket.on('offer', (offer) => this.handlers.onOffer(offer));
+    socket.on('offerResolved', (payload) => this.handlers.onOfferResolved(payload));
     socket.on('onlineCount', (count) => this.handlers.onOnlineCount(count));
     socket.on('forceLogout', (payload) => {
       this.joined = false;
@@ -291,6 +314,22 @@ export class NetworkClient {
 
   setAppearance(appearance: Appearance): Promise<Ack<PlayerProfile>> {
     return this.emitAck('setAppearance', appearance);
+  }
+
+  respondOffer(id: string, accept: boolean): Promise<Ack<PlayerProfile>> {
+    return this.emitAck('respondOffer', { id, accept });
+  }
+
+  setDifficulty(difficulty: string): Promise<Ack<PlayerProfile>> {
+    return this.emitAck('setDifficulty', { difficulty });
+  }
+
+  sendCompliment(toId: string, message: string): Promise<Ack> {
+    return this.emitAck('sendCompliment', { toId, message });
+  }
+
+  importSave(save: unknown): Promise<Ack<PlayerProfile>> {
+    return this.emitAck('importSave', { save });
   }
 
   async requestSnapshot(): Promise<GameSnapshot | null> {

@@ -25,6 +25,7 @@ import { LoginScreen, type LoginSubmitPayload } from '../ui/LoginScreen';
 import type { MenuContext } from '../ui/MenuContext';
 import { isModalOpen, modalHeader, openModal } from '../ui/Modal';
 import { Notifications } from '../ui/Notifications';
+import { OfferMenu } from '../ui/OfferMenu';
 import { ShopMenu } from '../ui/ShopMenu';
 import { SettingsMenu } from '../ui/SettingsMenu';
 import { StatsMenu } from '../ui/StatsMenu';
@@ -89,10 +90,15 @@ export class Game {
   private floatingText!: FloatingText;
   private pendingCashDelta = 0;
   private cashFlushAt = 0;
+  private activeEmote: string | null = null;
+  private emoteUntil = 0;
+  private lastEmoteSent: string | null = null;
   private upgradeMenu!: UpgradeMenu;
   private shopMenu!: ShopMenu;
   private statsMenu!: StatsMenu;
   private settingsMenu!: SettingsMenu;
+  private offerMenu!: OfferMenu;
+  private menuContext!: MenuContext;
 
   private profile: PlayerProfile | null = null;
   private profileReceivedAt = 0;
@@ -219,6 +225,11 @@ export class Game {
       },
       onDayReport: (payload) => this.handleDayReport(payload),
       onMarketEvent: (event) => this.handleMarketEvent(event),
+      onOffer: (offer) => {
+        this.audio.notify('event');
+        this.offerMenu?.open(offer);
+      },
+      onOfferResolved: (payload) => this.offerMenu?.resolved(payload.id, payload.accepted),
       onOnlineCount: (count) => {
         this.onlineCount = count;
         this.hud?.setOnline(count);
@@ -242,7 +253,7 @@ export class Game {
     if (!toastRoot || !hudRoot || !loginRoot || !overlayRoot) throw new Error('User interface elements are missing.');
 
     this.notifications = new Notifications(toastRoot, (kind) => this.audio.notify(kind));
-    const ctx: MenuContext = {
+    this.menuContext = {
       getProfile: () => {
         if (!this.profile) throw new Error('No vendor profile is loaded.');
         return this.profile;
@@ -252,11 +263,11 @@ export class Game {
       notify: this.notifications,
     };
 
-    this.upgradeMenu = new UpgradeMenu(ctx);
-    this.shopMenu = new ShopMenu(ctx);
-    this.statsMenu = new StatsMenu(ctx);
+    this.upgradeMenu = new UpgradeMenu(this.menuContext);
+    this.shopMenu = new ShopMenu(this.menuContext);
+    this.statsMenu = new StatsMenu(this.menuContext);
     this.settingsMenu = new SettingsMenu({
-      ...ctx,
+      ...this.menuContext,
       settings: this.settings,
       onSettingsChanged: () => {},
       onAppearancePreview: (appearance) => {
@@ -264,6 +275,7 @@ export class Game {
       },
       onSignOut: () => this.handleSignOut(),
     });
+    this.offerMenu = new OfferMenu(this.menuContext);
 
     this.hud = new HUD(hudRoot, {
       onBranch: (branch: UpgradeBranch) => {
@@ -600,7 +612,7 @@ export class Game {
           subtitle: `${plot.ownerName} · ${plot.categories.map((c) => STALL_CATEGORIES[c].shortName).join(' + ')}`,
           action: () => {
             this.audio.click();
-            openVisitMenu(plot);
+            openVisitMenu(this.menuContext, plot);
           },
         });
       }
@@ -671,6 +683,7 @@ export class Game {
     const interact = this.input.consumeInteract();
     const help = this.input.consumeHelp();
     const menuKey = this.input.consumeMenuKey();
+    const emote = this.input.consumeEmote();
     const hasProfile = !!this.profile && !!this.player;
     const progress = this.profile
       ? currentProgress(this.profile, this.profileReceivedAt)
@@ -696,12 +709,24 @@ export class Game {
           this.audio.click();
           this.statsMenu.open();
         }
+        if (emote) {
+          this.activeEmote = emote;
+          this.emoteUntil = this.elapsed + 2.4;
+          this.audio.click();
+        }
       }
       const intent = blocked
         ? { x: 0, y: 0, sprint: false, jump: false }
         : { x: this.input.movement.x, y: this.input.movement.y, sprint: this.input.sprint, jump };
       this.player!.update(dt, this.elapsed, intent, this.cameraRig.yaw, this.collision);
-      this.network.sendPosition(this.player!.positionPayload);
+      if (this.elapsed > this.emoteUntil) this.activeEmote = null;
+      const payload = this.player!.positionPayload;
+      if (this.activeEmote !== this.lastEmoteSent) {
+        this.lastEmoteSent = this.activeEmote;
+        this.network.sendPosition({ ...payload, emote: this.activeEmote ?? undefined }, true);
+      } else {
+        this.network.sendPosition(this.activeEmote ? { ...payload, emote: this.activeEmote } : payload);
+      }
       this.interaction.setActive(!blocked);
       this.interaction.update(this.player!.position);
       // Trigger after the target refresh so a profile tick can never swallow the E press.

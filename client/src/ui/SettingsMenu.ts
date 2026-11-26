@@ -88,6 +88,29 @@ export class SettingsMenu {
           </div>
 
           <div class="settings-group">
+            <div class="settings-group-head">${icon('star', 15)}<b>Pace of the market</b><span>Applies from the next day</span></div>
+            <div class="setting-row">
+              <label for="difficulty-select">Difficulty</label>
+              <select id="difficulty-select" class="select-input" data-difficulty>
+                <option value="chill" ${profile.difficulty === 'chill' ? 'selected' : ''}>Chill — forgiving stock & slower crowds</option>
+                <option value="standard" ${profile.difficulty === 'standard' ? 'selected' : ''}>Standard — the classic Colon night</option>
+                <option value="hustle" ${profile.difficulty === 'hustle' ? 'selected' : ''}>Hustle — bigger crowds, meaner events</option>
+              </select>
+              <span class="setting-value" data-difficulty-label>${profile.difficulty.toUpperCase()}</span>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-head">${icon('box', 15)}<b>Your save</b><span>Backup & restore</span></div>
+            <div class="settings-actions">
+              <button type="button" class="btn-ghost" data-export-save>${icon('download', 12)} Export save</button>
+              <button type="button" class="btn-ghost" data-import-save>${icon('upload', 12)} Import save</button>
+              <input type="file" id="save-import-input" accept="application/json,.json" hidden />
+            </div>
+            <div class="setting-note">Exports include balance, stock, upgrades and suki. Import replaces the current stall on this server.</div>
+          </div>
+
+          <div class="settings-group">
             <div class="settings-group-head">${icon('users', 15)}<b>Session</b><span>Guest save on this device</span></div>
             <div class="controls-grid">
               ${control('Walk', ['W', 'A', 'S', 'D'])}
@@ -148,6 +171,20 @@ export class SettingsMenu {
 
     modal.el.addEventListener('change', (event) => {
       const select = event.target as HTMLSelectElement;
+      if (select.dataset.difficulty) {
+        void this.setDifficulty(select.value, modal.el);
+      }
+    });
+
+    modal.el.addEventListener('input', (event) => {
+      const input = event.target as HTMLInputElement;
+      if (input.id === 'save-import-input' && input.files?.[0]) {
+        void this.importSave(input.files[0]);
+      }
+    });
+
+    modal.el.addEventListener('change', (event) => {
+      const select = event.target as HTMLSelectElement;
       if (select.dataset.setting === 'quality') {
         this.opts.settings.set('quality', select.value as QualitySetting);
         const side = select.closest('.settings-group')?.querySelector('.settings-group-head span');
@@ -180,6 +217,14 @@ export class SettingsMenu {
         this.opts.onSettingsChanged(this.opts.settings.current);
         window.dispatchEvent(new CustomEvent('merkado:reset-camera'));
         this.opts.notify.info('Camera reset', 'The view has been placed behind your vendor.');
+        return;
+      }
+      if (target.closest('[data-export-save]')) {
+        this.exportSave();
+        return;
+      }
+      if (target.closest('[data-import-save]')) {
+        modal.el.querySelector<HTMLInputElement>('#save-import-input')?.click();
         return;
       }
       if (target.closest('[data-sign-out]')) {
@@ -229,6 +274,61 @@ export class SettingsMenu {
       this.opts.notify.info('Name not changed', 'The market did not respond.', 'warning');
     } finally {
       this.busy = false;
+    }
+  }
+
+  private async setDifficulty(difficulty: string, modal: HTMLElement): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const result = await this.opts.network.setDifficulty(difficulty);
+      if (!result.ok || !result.data) {
+        this.opts.notify.info('Pace unchanged', result.error ?? 'The market did not respond.', 'warning');
+        return;
+      }
+      this.opts.onProfile(result.data);
+      const label = modal.querySelector<HTMLElement>('[data-difficulty-label]');
+      if (label) label.textContent = result.data.difficulty.toUpperCase();
+      this.opts.notify.info(
+        'Pace set',
+        result.data.difficulty === 'chill' ? 'A gentler night — slower crowds, kinder spoilage.' : result.data.difficulty === 'hustle' ? 'The market will push you harder tomorrow.' : 'Back to the classic Colon night.',
+        'success',
+      );
+    } catch {
+      this.opts.notify.info('Pace unchanged', 'The market did not respond.', 'warning');
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private exportSave(): void {
+    const profile = this.opts.getProfile();
+    const blob = new Blob([JSON.stringify(profile, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `merkado-${profile.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'save'}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    this.opts.notify.info('Save exported', 'Your vendor file has been downloaded. Keep it safe.', 'success');
+  }
+
+  private async importSave(file: File): Promise<void> {
+    if (this.busy) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as Record<string, unknown>;
+      const required = ['name', 'balance', 'today', 'lifetime'];
+      if (!required.every((key) => key in data)) throw new Error('bad shape');
+      const result = await this.opts.network.importSave(data);
+      if (!result.ok || !result.data) {
+        this.opts.notify.info('Import failed', result.error ?? 'That save file was not accepted.', 'warning');
+        return;
+      }
+      this.opts.onProfile(result.data);
+      this.opts.notify.info('Save imported', 'Your stall has been restored from the file.', 'success');
+    } catch {
+      this.opts.notify.info('Import failed', 'That does not look like a Merkado save file.', 'warning');
     }
   }
 

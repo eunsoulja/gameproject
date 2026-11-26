@@ -3,8 +3,9 @@ import type { PublicPlot } from '../../../shared/types';
 import { modalHeader, openModal } from './Modal';
 import { escapeHtml, initials, peso, timeAgo } from './format';
 import { CATEGORY_ICONS, icon } from './icons';
+import type { MenuContext } from './MenuContext';
 
-export function openVisitMenu(plot: PublicPlot): void {
+export function openVisitMenu(ctx: MenuContext, plot: PublicPlot): void {
   const online = plot.online;
   openModal(
     `
@@ -60,9 +61,43 @@ export function openVisitMenu(plot: PublicPlot): void {
       </div>
       <div class="modal-foot">
         <span class="modal-foot-note">Bay ${String(plot.index + 1).padStart(2, '0')} · ${plot.online ? 'Vendor online' : 'Vendor offline'}</span>
-        <button type="button" class="btn-ghost" data-modal-close>Back to the street</button>
+        <div class="visit-actions">
+          ${
+            plot.online
+              ? `<button type="button" class="btn-ghost" data-compliment="salamat">${icon('heart', 12)} Salamat!</button>
+                 <button type="button" class="btn-ghost" data-compliment="ingat">${icon('star', 12)} Ingat ka, friend</button>
+                 <button type="button" class="btn-gold" data-compliment="masarap">${icon('coin', 12)} Masarap!</button>`
+              : ''
+          }
+          <button type="button" class="btn-ghost" data-modal-close>Back to the street</button>
+        </div>
       </div>
     `,
     'visit-modal',
   );
+
+  if (!plot.online) return;
+  const modal = document.querySelector<HTMLElement>('.visit-modal');
+  modal?.addEventListener('click', (event) => {
+    const btn = (event.target as HTMLElement).closest<HTMLElement>('[data-compliment]');
+    if (!btn || btn.dataset.busy) return;
+    const kind = btn.dataset.compliment ?? 'salamat';
+    const messages: Record<string, string> = {
+      salamat: 'Salamat sa visita! Mabuhay ang Colon!',
+      ingat: 'Ingat ka sa pauwi. Kita tayo bukas!',
+      masarap: 'Ang sarap ng tindahan mo, promise!',
+    };
+    btn.dataset.busy = '1';
+    (btn as HTMLButtonElement).disabled = true;
+    ctx.network
+      .sendCompliment(plot.ownerId, messages[kind] ?? messages.salamat!)
+      .then((result) => {
+        if (result.ok) {
+          ctx.notify.info('Compliment sent', `${messages[kind]} — they will see it in the market.`, 'success');
+        } else {
+          ctx.notify.info('Not delivered', result.error ?? 'They may have stepped away.', 'warning');
+        }
+      })
+      .catch(() => ctx.notify.info('Not delivered', 'The market did not respond.', 'warning'));
+  });
 }

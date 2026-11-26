@@ -103,6 +103,8 @@ const PATHS: Record<string, string> = {
   receipt: '<path d="M5 2.5v19l2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5v-19H5Z"/><path d="M8.5 7h7M8.5 11h7M8.5 15h4"/>',
   palette: '<path d="M12 21a9 9 0 1 1 9-9c0 2.5-1.5 3.5-3 3.5h-1.5a2 2 0 0 0-1.5 3.2c.5.7.4 1.8-.5 2.1-.8.3-1.7.2-2.5.2Z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="9.5" cy="7" r="1" fill="currentColor"/><circle cx="14" cy="6.5" r="1" fill="currentColor"/><circle cx="17" cy="9.5" r="1" fill="currentColor"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  download: '<path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 19h16"/>',
+  upload: '<path d="M12 15V3M7.5 7.5 12 3l4.5 4.5M4 19h16"/>',
 };
 
 export function icon(name: string, size = 18, strokeWidth = 1.8): string {

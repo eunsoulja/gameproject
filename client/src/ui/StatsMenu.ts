@@ -225,6 +225,25 @@ export class StatsMenu {
             </section>
           </div>
 
+          ${
+            profile.quest
+              ? `<section class="ledger-card ledger-quest">
+            <div class="ledger-card-head">
+              <div class="ledger-card-title">
+                <span class="ledger-card-icon" style="--c:#ffc16b">${icon('target', 16)}</span>
+                <div><b>Tonight's mission</b><small>+${peso(profile.quest.reward)} when finished</small></div>
+              </div>
+              <span class="ledger-card-meta">${Math.min(profile.quest.progress, profile.quest.target)}/${profile.quest.target}</span>
+            </div>
+            <div class="quest-body">
+              <div class="quest-label">${escapeHtml(profile.quest.label)}</div>
+              <div class="quest-track"><i style="--w:${Math.min(100, (profile.quest.progress / Math.max(1, profile.quest.target)) * 100)}%"></i></div>
+              <div class="quest-state">${profile.quest.paid ? 'Paid out — salamat!' : profile.quest.done ? 'Complete — collect at closing' : 'In progress tonight'}</div>
+            </div>
+          </section>`
+              : ''
+          }
+
           <section class="ledger-card ledger-suki">
             <div class="ledger-card-head">
               <div class="ledger-card-title">
