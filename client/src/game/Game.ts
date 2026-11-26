@@ -400,6 +400,7 @@ export class Game {
     this.lastPlotIndex = profile.plotIndex;
     this.crowd.setOwnStall(profile.plotIndex);
     this.plotManager.setState(this.plots, profile.id, profile);
+    this.plotManager.updateStock(profile);
     this.hud.setProfile(profile);
     this.hud.setEvent(this.activeEvent);
     this.hud.setOnline(this.onlineCount);
@@ -445,6 +446,7 @@ export class Game {
     this.upgradeMenu.refresh(profile);
     this.shopMenu.refresh(profile);
     this.plotManager.setState(this.plots, profile.id, profile);
+    this.plotManager.updateStock(profile);
     this.refreshInteractions();
     this.remotePlayers.setSelfId(profile.id);
 

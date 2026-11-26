@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   BRANCH_ORDER,
+  PRODUCTS,
   STALL_CATEGORIES,
   UPGRADE_TREE,
   type StallCategory,
@@ -443,6 +444,27 @@ export class PlotManager {
       z: slot.z,
     }));
 
+    // A live stock board under the name sign — redrawn as inventory changes.
+    const stockCanvas = document.createElement('canvas');
+    stockCanvas.width = 512;
+    stockCanvas.height = 128;
+    const stockTexture = new THREE.CanvasTexture(stockCanvas);
+    stockTexture.colorSpace = THREE.SRGBColorSpace;
+    stockTexture.anisotropy = 4;
+    const stockMat = new THREE.MeshBasicMaterial({
+      map: stockTexture,
+      transparent: true,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
+    const stockMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 0.68), stockMat);
+    stockMesh.position.set(front - inward * 0.3, 2.32, slot.z);
+    stockMesh.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    stockMesh.renderOrder = 2;
+    base.group.add(stockMesh);
+    base.group.userData.stockBoard = { canvas: stockCanvas, texture: stockTexture };
+    this.redrawStockBoard(stockCanvas, stockTexture, profile);
+
     this.addUpgradeDressing(base, new Set(Object.values(profile.chosenUpgrades)), true);
     this.addVendor(base, [profile.appearance.shirt, profile.appearance.pants], profile.appearance, centerX + inward * -1.02);
 
@@ -755,6 +777,66 @@ export class PlotManager {
     // Apron.
     fabric.push(box(0.36, 0.5, 0.04, pick(this.rng, ['#e6ddc9', '#d8c39d', '#b95545']), { x, y: 0.95, z: z + 0.17 }));
     base.hasVendor = true;
+  }
+
+  /** Redraw the own-stall stock board without rebuilding the whole stall. */
+  updateStock(profile: PlayerProfile): void {
+    const view = this.views[this.ownIndex];
+    const board = view?.group?.userData.stockBoard as
+      | { canvas: HTMLCanvasElement; texture: THREE.Texture }
+      | undefined;
+    if (!board) return;
+    this.redrawStockBoard(board.canvas, board.texture as THREE.CanvasTexture, profile);
+  }
+
+  private redrawStockBoard(
+    canvas: HTMLCanvasElement,
+    texture: THREE.CanvasTexture,
+    profile: PlayerProfile,
+  ): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(10,13,18,0.88)';
+    ctx.beginPath();
+    ctx.roundRect(4, 4, w - 8, h - 8, 26);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(241,180,87,0.4)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    const unlocked = new Set(profile.unlockedCategories);
+    const rows = PRODUCTS.filter((p) => unlocked.has(p.category))
+      .map((p) => ({ name: p.name, count: profile.inventory[p.id] ?? 0, max: p.maxStock }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+    const total = rows.reduce((sum, r) => sum + r.count, 0);
+    const low = rows.some((r) => r.count > 0 && r.count / r.max < 0.25) || total === 0;
+
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = low ? '#f08a7e' : '#ffd083';
+    ctx.font = '800 44px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText('STOCK', 34, h / 2 - 18);
+    ctx.font = '800 64px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText(String(total), 34, h / 2 + 30);
+
+    ctx.textAlign = 'right';
+    ctx.font = '700 30px "Plus Jakarta Sans", sans-serif';
+    let y = 40;
+    for (const row of rows) {
+      ctx.fillStyle = row.count === 0 ? '#8a6f5c' : '#d8d2c4';
+      const label = row.name.length > 16 ? `${row.name.slice(0, 15)}…` : row.name;
+      ctx.fillText(`${label}  ×${row.count}`, w - 34, y);
+      y += 30;
+    }
+    if (rows.length === 0) {
+      ctx.fillStyle = '#8a6f5c';
+      ctx.fillText('Restock soon', w - 34, h / 2);
+    }
+    texture.needsUpdate = true;
   }
 
   private finishSlot(base: StallBase): void {
