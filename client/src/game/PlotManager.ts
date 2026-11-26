@@ -82,6 +82,8 @@ export class PlotManager {
   private collision: CollisionSystem;
   private rng: Random;
   private views: SlotView[] = [];
+  private steam: Array<{ sprite: THREE.Sprite; base: THREE.Vector3; phase: number }> = [];
+  private steamTexture: THREE.Texture | null = null;
   private ownPads: PlotPad[] = [];
   private ownIndex = -1;
   private elapsed = 0;
@@ -561,6 +563,13 @@ export class PlotManager {
       }
       structural.push(cylinder(0.17, 0.17, 0.18, 8, '#d8c896', { x: x + base.inward * 0.55, y: y + 0.14, z: z - 0.1 }));
       glow.push(cylinder(0.12, 0.12, 0.02, 8, '#ffc074', { x: x + base.inward * 0.55, y: y + 0.24, z: z - 0.1 }));
+      // Steam curls off the grill — the stall smells like dinner from the street.
+      for (let i = 0; i < 3; i++) {
+        const sprite = this.makeSteamSprite();
+        sprite.position.set(x - 0.16 + i * 0.16, y + 0.42, z);
+        base.group.add(sprite);
+        this.steam.push({ sprite, base: sprite.position.clone(), phase: (i * 2.1 + x) % 6.28 });
+      }
     } else if (category === 'driedFish') {
       structural.push(box(0.62, 0.06, 0.46, '#b7a781', { x, y, z }));
       for (let i = 0; i < 3; i++) {
@@ -902,8 +911,51 @@ export class PlotManager {
     group.add(mesh);
   }
 
+  private makeSteamSprite(): THREE.Sprite {
+    if (!this.steamTexture) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d')!;
+      const gradient = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+      gradient.addColorStop(0, 'rgba(255,244,230,0.55)');
+      gradient.addColorStop(0.6, 'rgba(240,235,225,0.22)');
+      gradient.addColorStop(1, 'rgba(240,235,225,0)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 64, 64);
+      this.steamTexture = new THREE.CanvasTexture(canvas);
+    }
+    const material = new THREE.SpriteMaterial({
+      map: this.steamTexture,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.setScalar(0.35);
+    sprite.renderOrder = 4;
+    return sprite;
+  }
+
   update(dt: number, elapsed: number): void {
     this.elapsed = elapsed;
+    // Steam puffs rise, swell and fade; prune emitters whose stall was rebuilt.
+    this.steam = this.steam.filter((entry) => {
+      if (!entry.sprite.parent) {
+        (entry.sprite.material as THREE.SpriteMaterial).dispose();
+        return false;
+      }
+      const t = (elapsed * 0.45 + entry.phase) % 1;
+      entry.sprite.position.set(
+        entry.base.x + Math.sin(elapsed * 1.3 + entry.phase) * 0.14,
+        entry.base.y + t * 1.7,
+        entry.base.z + Math.cos(elapsed * 1.1 + entry.phase) * 0.1,
+      );
+      const scale = 0.3 + t * 0.55;
+      entry.sprite.scale.setScalar(scale);
+      (entry.sprite.material as THREE.SpriteMaterial).opacity = Math.sin(t * Math.PI) * 0.34;
+      return true;
+    });
     for (const view of this.views) {
       if (!view.group) continue;
       if (view.marker) {
