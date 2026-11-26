@@ -37,11 +37,14 @@ export class Avatar {
   private materials: THREE.Material[] = [];
   private geometries: THREE.BufferGeometry[] = [];
   private shadow: boolean;
+  private umbrellaGroup: THREE.Group;
 
   constructor(options: AvatarOptions) {
     const appearance = options.appearance;
     this.shadow = options.shadows ?? true;
     this.root.add(this.body);
+    this.umbrellaGroup = this.buildUmbrella();
+    this.body.add(this.umbrellaGroup);
     this.root.scale.setScalar(options.scale ?? 1);
 
     const shirt = this.material(appearance.shirt);
@@ -216,6 +219,28 @@ export class Avatar {
 
   get position(): THREE.Vector3 {
     return this.root.position;
+  }
+
+  /** Compact hand umbrella held over the head — shown while it rains. */
+  private buildUmbrella(): THREE.Group {
+    const group = new THREE.Group();
+    const canopyMat = this.material('#d9534a');
+    const frameMat = this.material('#3a3f45');
+    const canopy = new THREE.Mesh(new THREE.ConeGeometry(0.56, 0.32, 8), canopyMat);
+    canopy.position.y = 2.42;
+    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.9, 5), frameMat);
+    tip.position.y = 1.95;
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.42, 5), this.material('#57402a'));
+    handle.position.set(0.2, 1.66, 0.12);
+    handle.rotation.z = 0.25;
+    this.geometries.push(canopy.geometry, tip.geometry, handle.geometry);
+    group.add(canopy, tip, handle);
+    group.visible = false;
+    return group;
+  }
+
+  setUmbrella(on: boolean): void {
+    this.umbrellaGroup.visible = on;
   }
 
   setAnim(anim: AnimState): void {
