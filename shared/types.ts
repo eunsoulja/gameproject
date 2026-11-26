@@ -55,6 +55,35 @@ export interface DailyReport {
   topProduct: string | null;
 }
 
+export interface SukiCustomer {
+  name: string;
+  visits: number;
+  favorite: string;
+  lastDay: number;
+}
+
+export interface DailyQuest {
+  id: string;
+  label: string;
+  target: number;
+  progress: number;
+  reward: number;
+  done: boolean;
+  paid: boolean;
+}
+
+export interface MarketOffer {
+  id: string;
+  kind: 'bulkBuy' | 'consignment';
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  expiresAt: number;
+  buyerName: string;
+}
+
 export interface PlayerProfile {
   id: string;
   name: string;
@@ -85,6 +114,10 @@ export interface PlayerProfile {
   };
   activeEvent: ActiveEventState | null;
   nextDayEvent: string | null;
+  suki: SukiCustomer[];
+  lastSukiNoticeAt: number;
+  quest: DailyQuest | null;
+  difficulty: 'chill' | 'standard' | 'hustle';
   updatedAt: number;
   online: boolean;
 }
@@ -113,6 +146,8 @@ export interface RemotePlayer {
   z: number;
   rot: number;
   anim: 'idle' | 'walk' | 'run' | 'jump';
+  emote?: string | null;
+  emoteUntil?: number;
   appearance: Appearance;
   reputation: number;
   online?: boolean;
@@ -174,6 +209,7 @@ export interface PositionPayload {
   z: number;
   rot: number;
   anim: 'idle' | 'walk' | 'run' | 'jump';
+  emote?: string;
 }
 
 export type ServerEventMap = {
@@ -186,6 +222,8 @@ export type ServerEventMap = {
   notification: (payload: NotificationPayload) => void;
   dayReport: (payload: DayReportPayload) => void;
   marketEvent: (event: ActiveEventState | null) => void;
+  offer: (offer: MarketOffer) => void;
+  offerResolved: (payload: { id: string; accepted: boolean }) => void;
   onlineCount: (count: number) => void;
   forceLogout: (payload: { reason: string }) => void;
 };
@@ -202,5 +240,8 @@ export type ClientEventMap = {
   setBusinessName: (payload: { name: string }, ack: (result: Ack<PlayerProfile>) => void) => void;
   setAppearance: (payload: Appearance, ack: (result: Ack<PlayerProfile>) => void) => void;
   activatePowerUp: (payload: { id: string }, ack: (result: Ack<PlayerProfile>) => void) => void;
+  respondOffer: (payload: { id: string; accept: boolean }, ack: (result: Ack<PlayerProfile>) => void) => void;
+  setDifficulty: (payload: { difficulty: string }, ack: (result: Ack<PlayerProfile>) => void) => void;
+  sendCompliment: (payload: { toId: string; message: string }, ack: (result: Ack) => void) => void;
   requestSnapshot: (ack: (result: Ack<GameSnapshot>) => void) => void;
 };

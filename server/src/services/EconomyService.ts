@@ -20,6 +20,7 @@ import type {
   Appearance,
   DailyReport,
   PlayerProfile,
+  SukiCustomer,
   TodayStats,
 } from '../../../shared/types';
 
@@ -43,6 +44,12 @@ export interface SaleResult {
 }
 
 const SHIRT_COLORS = ['#3f78c4', '#c44848', '#3f9b72', '#c9a23c', '#8455b5', '#d977a6', '#4f5f70'];
+
+const SUKI_FIRST = ['Aling', 'Mang', 'Inday', 'Kuy', 'Manang', 'Tatay', 'Nanay', 'Kuya'];
+const SUKI_NAMES = [
+  'Nena', 'Corazon', 'Lorna', 'Fe', 'Rowena', 'Divine', 'Mylene', 'Angel',
+  'Jojo', 'Bong', 'Rene', 'Totoy', 'Cardo', 'Efren', 'Jun', 'Marlo',
+];
 const PANTS_COLORS = ['#29303d', '#3a3f52', '#4b3f34', '#2d4757'];
 const SKIN_COLORS = ['#c98d64', '#b8784f', '#e0aa7e', '#9a6442', '#8a5436'];
 const HAIR_COLORS = ['#1d1a1a', '#2e2420', '#141414'];
@@ -138,6 +145,10 @@ export function createNewProfile(input: {
     weather: { condition: 'clear', temperature: 24 },
     activeEvent: null,
     nextDayEvent: null,
+    suki: [],
+    lastSukiNoticeAt: 0,
+    quest: null,
+    difficulty: 'standard',
     updatedAt: Date.now(),
     online: false,
   };
@@ -168,6 +179,11 @@ export function normalizeProfile(input: PlayerProfile): PlayerProfile {
   profile.weather = profile.weather ?? { condition: 'clear', temperature: 24 };
   profile.activeEvent = null;
   profile.nextDayEvent = profile.nextDayEvent ?? null;
+  profile.suki = Array.isArray(profile.suki) ? profile.suki.slice(0, 14) : [];
+  profile.lastSukiNoticeAt = Number(profile.lastSukiNoticeAt) || 0;
+  profile.quest = profile.quest ?? null;
+  profile.difficulty =
+    profile.difficulty === 'chill' || profile.difficulty === 'hustle' ? profile.difficulty : 'standard';
   profile.updatedAt = profile.updatedAt || Date.now();
   profile.today = profile.today ?? emptyToday(profile.reputation);
   profile.today.soldByProduct = profile.today.soldByProduct ?? {};
@@ -448,6 +464,7 @@ export function simulateSales(
       0,
       100,
     );
+    recordSukiVisit(profile, now, notices);
   }
 
   // Low-stock warning (one shared throttle lives in GameService).
@@ -461,6 +478,61 @@ export function simulateSales(
   }
 
   return result;
+}
+
+/**
+ * Regulars (suki) remember a fair price. Now and then one stops by, bumps
+ * your reputation a touch, and gets a line in the market chatter.
+ */
+function recordSukiVisit(profile: PlayerProfile, now: number, notices: EconomyNotice[]): void {
+  if (now - (profile.lastSukiNoticeAt ?? 0) < 40_000) return;
+  if (Math.random() > 0.4) return;
+  profile.lastSukiNoticeAt = now;
+
+  const unlockedProducts = PRODUCTS.filter((p) => profile.unlockedCategories.includes(p.category));
+  if (!unlockedProducts.length) return;
+
+  // Prefer returning regulars; occasionally a new face appears.
+  let suki: SukiCustomer | undefined;
+  if (profile.suki.length && Math.random() < 0.65) {
+    const total = profile.suki.reduce((sum, s) => sum + s.visits + 1, 0);
+    let roll = Math.random() * total;
+    for (const candidate of profile.suki) {
+      roll -= candidate.visits + 1;
+      if (roll <= 0) {
+        suki = candidate;
+        break;
+      }
+    }
+    suki ??= profile.suki[0];
+  }
+  if (!suki) {
+    const first = pick(SUKI_FIRST);
+    const name = `${first} ${pick(SUKI_NAMES)}`;
+    suki = {
+      name,
+      visits: 0,
+      favorite: pick(unlockedProducts).id,
+      lastDay: profile.day,
+    };
+    profile.suki.push(suki);
+    profile.suki.sort((a, b) => b.visits - a.visits);
+    profile.suki = profile.suki.slice(0, 14);
+  }
+  suki.visits += 1;
+  suki.lastDay = profile.day;
+  if (Math.random() < 0.25) suki.favorite = pick(unlockedProducts).id;
+
+  const favorite = PRODUCT_BY_ID[suki.favorite];
+  const returning = suki.visits > 1;
+  profile.reputation = clamp(profile.reputation + 0.4, 0, 100);
+  notices.push({
+    kind: 'success',
+    title: returning ? `${suki.name} is back` : `New regular: ${suki.name}`,
+    message: favorite
+      ? `${suki.name} loves your ${favorite.name} — visits counted: ${suki.visits}.`
+      : `${suki.name} stopped by your stall. Word travels at the mercado.`,
+  });
 }
 
 // ── End of day ──────────────────────────────────────────────────────────────

@@ -224,6 +224,33 @@ export class StatsMenu {
               </div>
             </section>
           </div>
+
+          <section class="ledger-card ledger-suki">
+            <div class="ledger-card-head">
+              <div class="ledger-card-title">
+                <span class="ledger-card-icon" style="--c:#f0c14c">${icon('users', 16)}</span>
+                <div><b>Your regulars</b><small>Suki who keep coming back to your stall</small></div>
+              </div>
+              <span class="ledger-card-meta">${profile.suki.length} known</span>
+            </div>
+            <div class="suki-list">
+              ${
+                [...profile.suki]
+                  .sort((a, b) => b.visits - a.visits)
+                  .slice(0, 8)
+                  .map((suki) => {
+                    const favorite = PRODUCTS.find((p) => p.id === suki.favorite);
+                    return `<div class="suki-row">
+                      <span class="suki-name">${escapeHtml(suki.name)}</span>
+                      <span class="suki-fav">${favorite ? escapeHtml(favorite.name) : '—'}</span>
+                      <b class="suki-visits">${suki.visits} visit${suki.visits === 1 ? '' : 's'}</b>
+                    </div>`;
+                  })
+                  .join('') ||
+                '<div class="ledger-empty">No regulars yet. Keep your prices fair and your shelves full — suki will find you.</div>'
+              }
+            </div>
+          </section>
         </div>
 
         <footer class="ledger-foot">
