@@ -373,7 +373,15 @@ export class HUD {
     }
     const now = this.serverNow();
     const active = profile.powerUps.filter((p) => p.endsAt === null || p.endsAt > now);
-    strip.innerHTML = active
+    const quest = profile.quest && !profile.quest.paid ? profile.quest : null;
+    const questChip = quest
+      ? `<div class="active-powerup quest-chip" style="--pu-color:#f0c14c" title="${escapeHtml(quest.label)}">
+          ${icon('target', 13)}
+          <b>Mission</b>
+          <span class="time">${Math.min(quest.progress, quest.target)}/${quest.target}</span>
+        </div>`
+      : '';
+    strip.innerHTML = questChip + active
       .map((pu) => {
         const def = powerUpDef(pu.id);
         let remaining = 'Until used';

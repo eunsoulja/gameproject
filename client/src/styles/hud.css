@@ -1026,3 +1026,8 @@ body.has-touch .hud-hint { display: none; }
   .upgrade-head { display: none; }
   .upgrade-boosts { display: none; }
 }
+
+/* ── Daily mission chip ──────────────────────────────────────────────────── */
+
+.quest-chip { border-color: rgba(240, 193, 76, 0.45); }
+.quest-chip b { color: #ffd98a; }
