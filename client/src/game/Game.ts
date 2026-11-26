@@ -4,6 +4,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import {
+  ACHIEVEMENTS,
   BRANCH_ORDER,
   MARKET_EVENTS,
   STALL_CATEGORIES,
@@ -103,6 +104,7 @@ export class Game {
   private emoteUntil = 0;
   private lastEmoteSent: string | null = null;
   private onboarded = false;
+  private earnedBadges = new Set<string>();
   private upgradeMenu!: UpgradeMenu;
   private shopMenu!: ShopMenu;
   private statsMenu!: StatsMenu;
@@ -467,6 +469,7 @@ export class Game {
 
   private handleProfile(profile: PlayerProfile): void {
     const previous = this.profile;
+    this.checkAchievements(profile, previous);
     this.profile = profile;
     this.profileReceivedAt = Date.now();
     this.ensurePlayer(profile);
@@ -496,6 +499,23 @@ export class Game {
     }
     if (this.pendingCashDelta !== 0 && Date.now() >= this.cashFlushAt) {
       this.flushCashFloat();
+    }
+  }
+
+  /** Fire a toast the first time each badge flips to earned. */
+  private checkAchievements(profile: PlayerProfile, previous: PlayerProfile | null): void {
+    if (!previous) {
+      this.earnedBadges = new Set(ACHIEVEMENTS.filter((a) => a.check(profile)).map((a) => a.id));
+      return;
+    }
+    for (const achievement of ACHIEVEMENTS) {
+      if (this.earnedBadges.has(achievement.id) || !achievement.check(profile)) continue;
+      this.earnedBadges.add(achievement.id);
+      this.notifications?.show(
+        { kind: 'success', title: `Badge earned — ${achievement.title}`, message: achievement.description },
+        8000,
+      );
+      this.audio.notify('success');
     }
   }
 
