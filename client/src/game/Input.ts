@@ -17,6 +17,7 @@ export class Input {
   private muteQueued = false;
   private fullscreenQueued = false;
   private resetCameraQueued = false;
+  private namesQueued = false;
   private emoteQueued: string | null = null;
   private mobileMoveX = 0;
   private mobileMoveY = 0;
@@ -79,6 +80,7 @@ export class Input {
       if (event.code === 'KeyM') this.muteQueued = true;
       if (event.code === 'KeyF') this.fullscreenQueued = true;
       if (event.code === 'KeyR') this.resetCameraQueued = true;
+      if (event.code === 'KeyN') this.namesQueued = true;
     };
     const onKeyUp = (event: KeyboardEvent): void => {
       this.keys.delete(event.code);
@@ -308,6 +310,12 @@ export class Input {
     return value;
   }
 
+  consumeNames(): boolean {
+    const value = this.namesQueued;
+    this.namesQueued = false;
+    return value;
+  }
+
   consumeLook(): LookDelta {
     const delta = { dx: this.lookX, dy: this.lookY };
     this.lookX = 0;
@@ -330,6 +338,7 @@ export class Input {
     this.muteQueued = false;
     this.fullscreenQueued = false;
     this.resetCameraQueued = false;
+    this.namesQueued = false;
     this.wheelDelta = 0;
     this.lookX = 0;
     this.lookY = 0;

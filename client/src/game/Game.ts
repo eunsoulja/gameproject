@@ -775,6 +775,7 @@ export class Game {
     const mute = this.input.consumeMute();
     const fullscreen = this.input.consumeFullscreen();
     const resetCam = this.input.consumeResetCamera();
+    const namesToggle = this.input.consumeNames();
     const hasProfile = !!this.profile && !!this.player;
     const progress = this.profile
       ? currentProgress(this.profile, this.profileReceivedAt)
@@ -797,6 +798,14 @@ export class Game {
       }
       if (resetCam) {
         window.dispatchEvent(new CustomEvent('merkado:reset-camera'));
+      }
+      if (namesToggle) {
+        const next = !this.settings.current.showNames;
+        this.settings.set('showNames', next);
+        this.notifications?.show(
+          { kind: 'info', title: next ? 'Name tags on' : 'Name tags off', message: '' },
+          2000,
+        );
       }
       if (!blocked) {
         this.cameraRig.rotate(look.dx, look.dy, this.settings.current.sensitivity, this.settings.current.invertDrag);
