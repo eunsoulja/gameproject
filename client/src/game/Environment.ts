@@ -721,8 +721,14 @@ export class Environment {
     this.lights.sun.intensity += flash * 0.8;
     if (flash > 0.01) this.lights.hemi.color.lerp(new THREE.Color('#cfe0ff'), flash * 0.7);
     for (const entry of this.pointLights) entry.light.intensity = entry.base * dim * (0.65 + night * 0.5) * (1 + flash * 0.6);
-    for (const puddle of this.puddles) {
-      (puddle.material as THREE.MeshPhysicalMaterial).opacity = daylight > 0.45 ? 0.28 : 0.75;
+    const wet = this.eventVisual === 'rain' || this.eventVisual === 'flood' ? 1 : 0;
+    for (let i = 0; i < this.puddles.length; i++) {
+      const puddle = this.puddles[i];
+      const material = puddle.material as THREE.MeshPhysicalMaterial;
+      material.opacity = (daylight > 0.45 ? 0.28 : 0.75) + wet * 0.12;
+      // Rain rings: puddles breathe and shimmer while the sky pours.
+      const ripple = wet * (0.06 + 0.05 * Math.sin(this.elapsed * 2.6 + i * 1.9));
+      puddle.scale.set(1 + ripple, 1, 1 - ripple * 0.6);
     }
   }
 
