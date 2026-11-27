@@ -204,6 +204,7 @@ export class MarketGenerator {
         this.structural.push(box(0.5, 0.5, 0.12, '#4a3623', { x, y: 0.28, z: z - 0.85 }));
         this.structural.push(box(0.5, 0.5, 0.12, '#4a3623', { x, y: 0.28, z: z + 0.85 }));
         this.structural.push(box(0.55, 0.5, 0.16, '#54402c', { x, y: 0.95, z: z - 0.9 }));
+        this.collision.addBox(x - 0.35, x + 0.35, z - 1.05, z + 1.05, 0, 0.7, 'bench');
       }
     }
     // Central monument — a parol-topped obelisk at the plaza heart.
@@ -212,6 +213,7 @@ export class MarketGenerator {
     this.structural.push(cylinder(0.28, 0.4, 3.4, 8, '#8d8578', { x: 0, y: 2.1, z: mz }));
     this.structural.push(box(0.9, 0.5, 0.9, '#6e675c', { x: 0, y: 4.0, z: mz }));
     this.glow.push(sphere(0.3, '#ffd76a', { x: 0, y: 4.6, z: mz }, 8));
+    this.collision.addBox(-0.9, 0.9, mz - 0.9, mz + 0.9, 0, 4.6, 'monument');
     // String lights sagging across the walkway.
     for (let z = zone.zMin + 4; z < zone.zMax - 2; z += 9) {
       for (let i = 0; i <= 6; i++) {
@@ -236,6 +238,7 @@ export class MarketGenerator {
           y: 2.2,
           z,
         }));
+        this.collision.addBox(side * 7.4 - 0.15, side * 7.4 + 0.15, z - 0.15, z + 0.15, 0, 4.4, 'gate-post');
       }
       this.structural.push(box(15.2, 0.22, 0.22, '#5d4328', { x: 0, y: 4.35, z }));
       // Hanging name board facing down the street (readable both directions).
@@ -259,6 +262,7 @@ export class MarketGenerator {
         // Mini shrine gate at the alley mouth.
         for (const side of [-1, 1] as Array<-1 | 1>) {
           this.structural.push(cylinder(0.12, 0.14, 3.6, 6, '#8a2f2f', { x: side * 6.8, y: 1.8, z: zone.zMax - 3 }));
+          this.collision.addBox(side * 6.8 - 0.18, side * 6.8 + 0.18, zone.zMax - 3.18, zone.zMax - 2.82, 0, 3.6, 'shrine-post');
         }
         this.structural.push(box(14.4, 0.3, 0.3, '#8a2f2f', { x: 0, y: 3.7, z: zone.zMax - 3 }));
         this.glow.push(sphere(0.22, '#ffd76a', { x: 0, y: 3.2, z: zone.zMax - 3 }, 7));
