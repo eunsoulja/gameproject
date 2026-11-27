@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WORLD, zoneCategoryAt } from '../../../shared/layout';
+import { DISTRICTS, WORLD, zoneCategoryAt } from '../../../shared/layout';
 import type { StallCategory } from '../../../shared/config';
 import type { CollisionSystem } from './CollisionSystem';
 import {
@@ -85,6 +85,7 @@ export class MarketGenerator {
     this.built = true;
     this.buildStallRows();
     this.buildTianggeAlley();
+    this.buildPlaza();
     this.buildJeepneys();
     this.buildCarts();
     this.buildStreetClutter();
@@ -184,6 +185,38 @@ export class MarketGenerator {
       }
     }
     for (const spot of spots) this.buildStall(spot);
+  }
+
+  /** Plaza del Mercado — benches, a central monument and overhead string lights. */
+  private buildPlaza(): void {
+    const zone = DISTRICTS.find((d) => d.id === 'plaza');
+    if (!zone) return;
+    const wood = '#6b4c33';
+    // Benches facing the walkway every ~14m, alternating sides.
+    for (let z = zone.zMin + 6; z < zone.zMax - 4; z += 14) {
+      for (const side of [-1, 1] as Array<-1 | 1>) {
+        const x = side * 5.4;
+        this.structural.push(box(0.5, 0.08, 2.0, wood, { x, y: 0.55, z }));
+        this.structural.push(box(0.5, 0.5, 0.12, '#4a3623', { x, y: 0.28, z: z - 0.85 }));
+        this.structural.push(box(0.5, 0.5, 0.12, '#4a3623', { x, y: 0.28, z: z + 0.85 }));
+        this.structural.push(box(0.55, 0.5, 0.16, '#54402c', { x, y: 0.95, z: z - 0.9 }));
+      }
+    }
+    // Central monument — a parol-topped obelisk at the plaza heart.
+    const mz = (zone.zMin + zone.zMax) / 2;
+    this.structural.push(cylinder(0.7, 0.9, 0.5, 8, '#7a7268', { x: 0, y: 0.25, z: mz }));
+    this.structural.push(cylinder(0.28, 0.4, 3.4, 8, '#8d8578', { x: 0, y: 2.1, z: mz }));
+    this.structural.push(box(0.9, 0.5, 0.9, '#6e675c', { x: 0, y: 4.0, z: mz }));
+    this.glow.push(sphere(0.3, '#ffd76a', { x: 0, y: 4.6, z: mz }, 8));
+    // String lights sagging across the walkway.
+    for (let z = zone.zMin + 4; z < zone.zMax - 2; z += 9) {
+      for (let i = 0; i <= 6; i++) {
+        const t = i / 6;
+        const x = -6 + t * 12;
+        const y = 4.6 - Math.sin(t * Math.PI) * 0.7;
+        this.glow.push(sphere(0.07, i % 2 ? '#ffd76a' : '#ff9d7a', { x, y, z }, 5));
+      }
+    }
   }
 
   private nearSideStreet(z: number, margin: number): boolean {
