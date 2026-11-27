@@ -882,12 +882,15 @@ export class Game {
     };
     items.push(this.npcTalkItem);
 
+    const weekday = ['Lunes', 'Martes', 'Miyerkules', 'Huwebes', 'Biyernes', 'Sabado', 'Domingo'][
+      ((this.profile?.day ?? 1) - 1) % 7
+    ];
     items.push({
       id: 'market-board',
       position: new THREE.Vector3(0, 0, 102),
       radius: 2.6,
-      title: 'Colon market board',
-      subtitle: 'Controls, goals and how the night market works',
+      title: `Colon market board — ${weekday}`,
+      subtitle: `Day ${this.profile?.day ?? 1} · controls, goals and how the night market works`,
       action: () => {
         this.audio.click();
         openHelpMenu();
