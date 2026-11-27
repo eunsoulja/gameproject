@@ -375,7 +375,7 @@ export class GameService {
       this.notifyRecord(record, {
         kind: 'info',
         title: `Welcome back, ${record.profile.name}`,
-        message: `Day ${this.clock.day} · ${dateForDay(this.clock.day)}. Your stall is waiting at ${STALL_CATEGORIES[record.profile.unlockedCategories[0]].shortName} row.`,
+        message: `Day ${this.clock.day} · ${dateForDay(this.clock.day)}. Lifetime ₱${record.profile.lifetime.totalEarnings.toLocaleString('en-PH')} · ${record.profile.suki.length} sukis · stall at ${STALL_CATEGORIES[record.profile.unlockedCategories[0]].shortName} row.`,
       });
       void this.saveService.save(this.serializeRecord(record)!);
       return {
