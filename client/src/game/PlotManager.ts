@@ -296,6 +296,54 @@ export class PlotManager {
       }, 5));
     }
 
+    // ── Lot-tier kit variations ──────────────────────────────────────────
+    if (slot.kind === 'flagship') {
+      // Parol arch over the front — a string of star lanterns.
+      const archZ = slot.z;
+      for (let i = 0; i <= 8; i++) {
+        const t = i / 8;
+        const az = archZ - width / 2 - 0.4 + t * (width + 0.8);
+        const ay = canopyY + 0.55 + Math.sin(t * Math.PI) * 0.5;
+        glow.push(sphere(0.09, i % 2 ? '#ff6b5e' : '#ffd76a', {
+          x: front + outward * 0.15,
+          y: ay,
+          z: az,
+        }, 6));
+      }
+      // Taller corner posts carry the arch.
+      for (const dz of [-width / 2 - 0.3, width / 2 + 0.3]) {
+        metal.push(cylinder(0.05, 0.06, canopyY + 1.1, 5, '#4a4136', {
+          x: front + outward * 0.15,
+          y: (canopyY + 1.1) / 2,
+          z: slot.z + dz,
+        }));
+      }
+      // Flagship gets a second shelf row on the back wall.
+      structural.push(box(2.2, 0.08, width - 0.8, '#7a5c39', {
+        x: centerX + outward * 0.95,
+        y: counterY + 1.55,
+        z: slot.z,
+      }));
+    } else if (slot.kind === 'corner') {
+      // Corner lots wrap a second counter along the side street edge.
+      structural.push(box(1.1, 0.16, 0.9, '#8b673f', {
+        x: centerX - inward * 1.15,
+        y: counterY,
+        z: slot.z + width / 2 - 0.2,
+      }));
+      fabric.push(box(1.5, 0.07, 1.3, primary, {
+        x: centerX - inward * 1.1,
+        y: canopyY - 0.02,
+        z: slot.z + width / 2 - 0.2,
+        rz: inward * 0.12,
+      }));
+      metal.push(cylinder(0.045, 0.05, canopyY + 0.4, 5, '#4a4136', {
+        x: centerX - inward * 1.7,
+        y: (canopyY + 0.4) / 2,
+        z: slot.z + width / 2 - 0.2,
+      }));
+    }
+
     const base: StallBase = {
       group,
       structural,
