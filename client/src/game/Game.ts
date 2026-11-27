@@ -115,6 +115,7 @@ export class Game {
   private lastServeAttempt = -10;
   private npcTalkPos = new THREE.Vector3();
   private npcTalkTarget: Customer | null = null;
+  private sukiToasted = new Set<string>();
   private npcTalkItem: Interactable | null = null;
   private lastNpcTalk = -10;
   private karenOrders: KarenderoOrderInfo[] = [];
@@ -878,6 +879,12 @@ export class Game {
         if (!this.crowd.talkTo(npc, p.x, p.z)) return;
         this.lastNpcTalk = this.elapsed;
         this.audio.click();
+        // First chat with each suki regular earns a milestone toast.
+        if (npc.suki && !this.sukiToasted.has(npc.name)) {
+          this.sukiToasted.add(npc.name);
+          this.notifications?.info(`${npc.name} is your suki!`, 'A regular who always stops by your stall. They queue more and chat more.', 'success');
+          this.audio.notify('success');
+        }
         try {
           const key = 'merkado.npcChats';
           localStorage.setItem(key, String((Number(localStorage.getItem(key)) || 0) + 1));
