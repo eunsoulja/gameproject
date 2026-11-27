@@ -934,6 +934,11 @@ export class Game {
   private updateKarendero(): void {
     const now = Date.now();
     const p = this.player?.position;
+    // First queue of the session gets a one-time how-to toast.
+    if (this.crowd.queueLength() > 0 && !localStorage.getItem('merkado.karenTut')) {
+      localStorage.setItem('merkado.karenTut', '1');
+      this.notifications?.info('Karendero rush!', 'Take the order → wait for the plate → serve the match. Tama na ang pila!');
+    }
     // Drop orders that went cold; drop a held plate whose order vanished.
     this.karenOrders = this.karenOrders.filter((o) => o.expiresAt > now);
     if (
