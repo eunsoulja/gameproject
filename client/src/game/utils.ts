@@ -317,53 +317,56 @@ export function makeSignTexture(
   subtitle: string,
   options: { accent?: string; dark?: string; vertical?: boolean } = {},
 ): THREE.CanvasTexture {
-  const accent = options.accent ?? '#f6c165';
-  const dark = options.dark ?? '#17100a';
+  const accent = options.accent ?? '#d97e17';
   const width = 1024;
   const height = 384;
   return makeCanvasTexture(width, height, (ctx) => {
-    const background = ctx.createLinearGradient(0, 0, width, height);
-    background.addColorStop(0, '#1f1610');
-    background.addColorStop(0.55, dark);
-    background.addColorStop(1, '#100b08');
-    ctx.fillStyle = background;
+    // Hand-painted stall sign: cream paper face, ink lettering, accent trim.
+    const paper = ctx.createLinearGradient(0, 0, 0, height);
+    paper.addColorStop(0, '#fff8e4');
+    paper.addColorStop(0.6, '#f7e7c2');
+    paper.addColorStop(1, '#eed9ac');
+    ctx.fillStyle = paper;
     ctx.fillRect(0, 0, width, height);
 
+    // Ink frame with a thin accent pinline inside.
+    ctx.strokeStyle = '#1c1008';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(10, 10, width - 20, height - 20);
     ctx.strokeStyle = accent;
-    ctx.globalAlpha = 0.7;
-    ctx.lineWidth = 8;
-    ctx.strokeRect(14, 14, width - 28, height - 28);
-    ctx.globalAlpha = 0.27;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(32, 32, width - 64, height - 64);
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(30, 30, width - 60, height - 60);
     ctx.globalAlpha = 1;
 
-    // Slight warm bloom in the middle.
-    const glow = ctx.createRadialGradient(width / 2, height / 2, 20, width / 2, height / 2, width / 2);
-    glow.addColorStop(0, `${accent}22`);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, width, height);
+    // Accent ribbon under the title block.
+    ctx.fillStyle = accent;
+    ctx.fillRect(60, 268, width - 120, 10);
+    ctx.beginPath();
+    ctx.moveTo(width / 2 - 14, 262);
+    ctx.lineTo(width / 2 + 14, 262);
+    ctx.lineTo(width / 2, 282);
+    ctx.closePath();
+    ctx.fill();
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = accent;
-    ctx.font = '700 34px "Plus Jakarta Sans", sans-serif';
-    ctx.fillText(subtitle.toUpperCase(), width / 2, 105);
-    ctx.fillStyle = '#fff4da';
-    ctx.shadowColor = accent;
-    ctx.shadowBlur = 26;
-    const fontSize = title.length > 20 ? 86 : title.length > 13 ? 106 : 126;
-    ctx.font = `800 ${fontSize}px "Plus Jakarta Sans", sans-serif`;
-    ctx.fillText(title.toUpperCase(), width / 2, 218);
+    ctx.fillStyle = '#6b5335';
+    ctx.font = '700 36px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText(subtitle.toUpperCase(), width / 2, 96);
+
+    ctx.fillStyle = '#1c1008';
+    ctx.shadowColor = 'rgba(28,16,8,0.25)';
     ctx.shadowBlur = 0;
-    ctx.fillStyle = `${accent}aa`;
-    ctx.font = '600 28px "Plus Jakarta Sans", sans-serif';
-    ctx.fillText('COLON STREET · CEBU', width / 2, 317);
-    for (let i = 0; i < 18; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${0.03 + (i % 3) * 0.01})`;
-      ctx.fillRect(0, (i / 18) * height, width, 2);
-    }
+    ctx.shadowOffsetY = 5;
+    const fontSize = title.length > 20 ? 78 : title.length > 13 ? 98 : 118;
+    ctx.font = `${fontSize}px "Lilita One", "Arial Black", sans-serif`;
+    ctx.fillText(title.toUpperCase(), width / 2, 196);
+    ctx.shadowOffsetY = 0;
+
+    ctx.fillStyle = accent;
+    ctx.font = '800 30px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText('COLON STREET · CEBU', width / 2, 336);
   });
 }
 
@@ -398,18 +401,34 @@ export function makeLabelTexture(text: string, color = '#ffe0a3', background = '
   const height = 160;
   return makeCanvasTexture(width, height, (ctx) => {
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = background;
+    const transparent = /^rgba?\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(background.trim());
+    if (transparent) {
+      // Floating label — glowing text only, no board.
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '800 58px "Lilita One", "Arial Black", sans-serif';
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 18;
+      ctx.fillText(text.toUpperCase(), width / 2, height / 2 + 2);
+      ctx.shadowBlur = 0;
+      return;
+    }
+    // Painted board — cream face, ink text, accent underline.
+    ctx.fillStyle = '#fff3d6';
     ctx.beginPath();
-    ctx.roundRect(6, 6, width - 12, height - 12, 42);
+    ctx.roundRect(6, 6, width - 12, height - 12, 30);
     ctx.fill();
-    ctx.strokeStyle = `${color}55`;
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#1c1008';
+    ctx.lineWidth = 7;
     ctx.stroke();
-    ctx.fillStyle = color;
+    ctx.fillStyle = '#1c1008';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '800 54px "Plus Jakarta Sans", sans-serif';
-    ctx.fillText(text.toUpperCase(), width / 2, height / 2 + 2);
+    ctx.font = '700 52px "Lilita One", "Arial Black", sans-serif';
+    ctx.fillText(text.toUpperCase(), width / 2, height / 2 - 6);
+    ctx.fillStyle = color;
+    ctx.fillRect(width / 2 - 60, height - 34, 120, 8);
   });
 }
 

@@ -331,8 +331,8 @@ export class PlotManager {
     glow.push(sphere(0.05, '#f0bc72', { x: base.front - base.inward * 0.4, y: 2.1, z: s.z }, 5));
     // A handwritten vacancy board.
     const texture = makeLabelTexture('BAKANTE', '#d7c9ae', 'rgba(18,20,18,0.82)');
-    this.addPlane(base.group, texture, 1.55, 0.48, base.front - base.inward * 0.2, 1.92, s.z, base.side);
-    this.addBaySign(base.group, slot.sign, '#e4d8bd', base.front - base.inward * 0.22, 3.04, s.z, base.side, 2.1);
+    this.addPlane(base.group, texture, 1.9, 0.55, base.front - base.inward * 0.2, 1.92, s.z, base.side);
+    this.addBaySign(base.group, slot.sign, '#8a5a1e', base.front - base.inward * 0.22, 3.04, s.z, base.side, 2.7);
     this.addVendor(base, ['#7a756b', '#4d4a43'], null, base.centerX + base.inward * -1.0);
     metal.push(cylinder(0.25, 0.25, 0.4, 9, '#7c694b', {
       x: base.centerX + base.inward * 1.0,
@@ -369,7 +369,7 @@ export class PlotManager {
       2.72,
       base.slot.z,
       base.side,
-      3.25,
+      3.8,
     );
     this.addUpgradeDressing(base, new Set(plot.upgrades), false);
     this.addVendor(base, ['#6c6152', '#4c4337'], plot.appearance, centerX + base.inward * -1.05);
@@ -418,7 +418,7 @@ export class PlotManager {
       2.82,
       slot.z,
       side,
-      3.5,
+      4.1,
     );
 
     // A warm local light so your bay reads as "yours" at night.
@@ -879,6 +879,37 @@ export class PlotManager {
   ): void {
     const texture = makeSignTexture(title, subtitle, { accent, dark: '#160f09' });
     this.addPlane(group, texture, width, width * 0.32, x, y, z, side);
+    // A soft halo behind the board so the paper face pops against the night.
+    const glow = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this.signGlowTexture(),
+        color: '#ffcf8a',
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+      }),
+    );
+    glow.scale.set(width * 1.15, width * 0.62, 1);
+    glow.position.set(x - side * 0.06, y, z);
+    glow.renderOrder = 1;
+    group.add(glow);
+  }
+
+  private glowTex: THREE.Texture | null = null;
+  private signGlowTexture(): THREE.Texture {
+    if (this.glowTex) return this.glowTex;
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createRadialGradient(64, 64, 6, 64, 64, 62);
+    gradient.addColorStop(0, 'rgba(255,214,140,0.85)');
+    gradient.addColorStop(0.55, 'rgba(255,190,110,0.28)');
+    gradient.addColorStop(1, 'rgba(255,180,100,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+    this.glowTex = new THREE.CanvasTexture(canvas);
+    return this.glowTex;
   }
 
   private addBaySign(
