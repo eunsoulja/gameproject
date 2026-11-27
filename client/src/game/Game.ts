@@ -132,6 +132,7 @@ export class Game {
   private confetti: Confetti | null = null;
   private hagglePrompt: HTMLElement | null = null;
   private upsellPrompt: HTMLElement | null = null;
+  private trafficTimer = 0;
   private fpsEl: HTMLElement | null = null;
   private fpsTimer = 0;
   private fpsFrames = 0;
@@ -1497,6 +1498,11 @@ export class Game {
     this.crowd.update(dt, this.elapsed, this.player?.position, this.activeEmote != null);
     this.updateNpcTalkTarget();
     this.updateKarendero();
+    this.trafficTimer -= dt;
+    if (this.trafficTimer <= 0) {
+      this.trafficTimer = 0.6;
+      this.hud.setTraffic(this.player ? this.crowd.trafficNearStall() : null);
+    }
     this.market.update(dt, this.elapsed);
     this.umbrellas.update(dt, this.elapsed);
     this.plotManager.update(dt, this.elapsed);

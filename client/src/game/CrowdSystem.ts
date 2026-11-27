@@ -692,6 +692,19 @@ export class CrowdSystem {
     return true;
   }
 
+  /** Shoppers milling around the player's stall — the foot-traffic meter. */
+  trafficNearStall(): number {
+    if (!this.ownConfigured) return 0;
+    let count = 0;
+    for (const c of this.customers) {
+      if (!c.active || c.vendorIndex >= 0 || c.state === 'leave') continue;
+      const dx = c.x - this.ownX;
+      const dz = c.z - this.ownZ;
+      if (dx * dx + dz * dz < 144) count++;
+    }
+    return count;
+  }
+
   /** Nearest chat-able shopper to a world position — used for the talk prompt. */
   nearestForTalk(x: number, z: number, radius: number): Customer | null {
     let best: Customer | null = null;

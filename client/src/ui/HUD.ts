@@ -92,6 +92,14 @@ export class HUD {
             <span class="panel-sub" data-ref="rep-sub">New vendor on the block</span>
           </div>
         </div>
+        <div class="hud-panel panel-traffic" data-ref="traffic-panel" style="display:none">
+          <div class="panel-icon">${icon('users', 19)}</div>
+          <div class="panel-copy">
+            <span class="panel-label">Foot traffic</span>
+            <div class="panel-value" data-ref="traffic-value">0</div>
+            <span class="panel-sub" data-ref="traffic-sub">near your stall</span>
+          </div>
+        </div>
         <div class="hud-panel panel-weather" data-ref="weather-panel">
           <div class="panel-icon" data-ref="weather-icon">${icon('moon', 19)}</div>
           <div class="panel-copy">
@@ -249,6 +257,20 @@ export class HUD {
 
   setServerOffset(offset: number): void {
     this.serverOffset = offset;
+  }
+
+  /** Live shopper count near the player's stall — null hides the panel. */
+  setTraffic(count: number | null): void {
+    const panel = this.root.querySelector<HTMLElement>('[data-ref="traffic-panel"]');
+    if (!panel) return;
+    if (count === null) {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = '';
+    this.el('traffic-value').textContent = String(count);
+    this.el('traffic-sub').textContent =
+      count === 0 ? 'quiet stretch' : count < 4 ? 'a few browsers' : count < 8 ? 'steady flow' : 'packed!';
   }
 
   setEvent(event: ActiveEventState | null): void {
