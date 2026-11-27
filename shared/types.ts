@@ -4,6 +4,7 @@ import type {
   StallCategory,
   UpgradeBranch,
 } from './config';
+import type { KarenderoOrderReceipt, KarenderoPickup } from './karendero';
 
 export interface Appearance {
   shirt: string;
@@ -272,6 +273,12 @@ export type ClientEventMap = {
   serveCustomer: (ack: (result: Ack<SaleReceipt>) => void) => void;
   respondHaggle: (
     payload: { accept: boolean },
+    ack: (result: Ack<SaleReceipt>) => void,
+  ) => void;
+  takeOrder: (ack: (result: Ack<KarenderoOrderReceipt>) => void) => void;
+  pickupFood: (ack: (result: Ack<KarenderoPickup>) => void) => void;
+  serveDish: (
+    payload: { dishId: string },
     ack: (result: Ack<SaleReceipt>) => void,
   ) => void;
   setPrice: (payload: PriceRequest, ack: (result: Ack<PlayerProfile>) => void) => void;

@@ -19,6 +19,8 @@ export function openHelpMenu(): void {
             <p>Walk to the glowing counter in front of your bay and press <b>E</b> to buy stock, set prices and activate power-ups. Stock runs out as customers buy.</p>
             <b>${icon('coin', 14)} Serve customers yourself</b>
             <p>Step out to the walkway edge of your counter and press <b>E</b> to personally serve a customer — you earn <b>full price with no haggling</b>, plus occasional tips. Standing there beats letting the stall run on its own.</p>
+            <b>${icon('bbq', 14)} Run a karendero</b>
+            <p>Food stalls get a real queue: hungry shoppers line up at your counter. Press <b>E</b> to take an order, the stove cooks it, then pick the plate up and serve the customer who ordered it — wrong dish means a sad customer.</p>
           </div>
           <div class="help-card">
             <b>${icon('arrowUp', 14)} Upgrade pads</b>

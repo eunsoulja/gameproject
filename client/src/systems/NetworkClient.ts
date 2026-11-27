@@ -14,6 +14,7 @@ import type {
   SaleReceipt,
 } from '../../../shared/types';
 import type { ActiveEventState, StallCategory, UpgradeBranch } from '../../../shared/config';
+import type { KarenderoOrderReceipt, KarenderoPickup } from '../../../shared/karendero';
 
 export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'offline' | 'error';
 
@@ -73,6 +74,12 @@ interface ClientToServerEvents {
   serveCustomer: (ack: (result: Ack<SaleReceipt>) => void) => void;
   respondHaggle: (
     payload: { accept: boolean },
+    ack: (result: Ack<SaleReceipt>) => void,
+  ) => void;
+  takeOrder: (ack: (result: Ack<KarenderoOrderReceipt>) => void) => void;
+  pickupFood: (ack: (result: Ack<KarenderoPickup>) => void) => void;
+  serveDish: (
+    payload: { dishId: string },
     ack: (result: Ack<SaleReceipt>) => void,
   ) => void;
   setPrice: (
@@ -316,6 +323,18 @@ export class NetworkClient {
 
   respondHaggle(accept: boolean): Promise<Ack<SaleReceipt>> {
     return this.emitAck('respondHaggle', { accept });
+  }
+
+  takeOrder(): Promise<Ack<KarenderoOrderReceipt>> {
+    return this.emitAck('takeOrder', {});
+  }
+
+  pickupFood(): Promise<Ack<KarenderoPickup>> {
+    return this.emitAck('pickupFood', {});
+  }
+
+  serveDish(dishId: string): Promise<Ack<SaleReceipt>> {
+    return this.emitAck('serveDish', { dishId });
   }
 
   setPrice(productId: string, price: number): Promise<Ack<PlayerProfile>> {

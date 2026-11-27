@@ -13,11 +13,20 @@ export interface Customer {
   targetX: number;
   targetZ: number;
   speed: number;
-  state: 'walk' | 'browse' | 'scan' | 'chat';
+  state: 'walk' | 'browse' | 'scan' | 'chat' | 'queue' | 'waitFood' | 'eat' | 'leave';
   timer: number;
   chatLine: number;
   chatPartner: Customer | null;
   talkCd: number;
+  /** Karendero queue slot (-1 = not queuing). */
+  queueIndex: number;
+  atSlot: boolean;
+  /** Dish id/name the customer ordered, while waiting for food. */
+  orderDish: string | null;
+  orderDishName: string | null;
+  waitIndex: number;
+  /** Seconds the order can sit before the customer gives up. */
+  orderTimer: number;
   faceYaw: number;
   active: boolean;
   bob: number;
@@ -71,6 +80,7 @@ export class CrowdSystem {
   private ownZ = 0;
   private ownInward = 1;
   private ownConfigured = false;
+  private ownIsFood = false;
   private eventVisual: EventVisual = 'none';
   private rainy = false;
   private progress = START_PROGRESS;
@@ -89,12 +99,13 @@ export class CrowdSystem {
     this.applyDensity();
   }
 
-  setOwnStall(plotIndex: number): void {
+  setOwnStall(plotIndex: number, foodStall = false): void {
     const slot = PLOT_SLOTS[plotIndex];
     if (!slot) return;
     this.ownX = slot.x;
     this.ownZ = slot.z;
     this.ownInward = slot.side === 'west' ? 1 : -1;
+    this.ownIsFood = foodStall;
     this.ownConfigured = true;
   }
 
@@ -163,6 +174,12 @@ export class CrowdSystem {
       chatLine: 0,
       chatPartner: null,
       talkCd: 0,
+      queueIndex: -1,
+      atSlot: false,
+      orderDish: null,
+      orderDishName: null,
+      waitIndex: -1,
+      orderTimer: 0,
       faceYaw: 0,
       active: false,
       bob: index * 0.13,
@@ -203,6 +220,12 @@ export class CrowdSystem {
     customer.state = 'scan';
     customer.timer = range(this.rng, 0.2, 2.5);
     customer.speed = 0;
+    customer.queueIndex = -1;
+    customer.atSlot = false;
+    customer.orderDish = null;
+    customer.orderDishName = null;
+    customer.waitIndex = -1;
+    customer.orderTimer = 0;
   }
 
   private updateCustomer(customer: Customer, dt: number, elapsed: number): void {
@@ -232,7 +255,7 @@ export class CrowdSystem {
           // handled inside tryStartChat
         } else {
           this.chooseTarget(customer);
-          customer.state = 'walk';
+          if (customer.queueIndex < 0) customer.state = 'walk';
         }
       }
       customer.speed += (0 - customer.speed) * Math.min(1, dt * 5);
@@ -285,11 +308,58 @@ export class CrowdSystem {
         }
         customer.chatPartner = null;
       }
+    } else if (customer.state === 'queue' || customer.state === 'waitFood') {
+      // Karendero: walk to your spot, then idle facing the counter.
+      const dx = customer.targetX - customer.x;
+      const dz = customer.targetZ - customer.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance > 0.45) {
+        const targetSpeed = customer.speed > 0.1 ? customer.speed : range(this.rng, 1.15, 1.75);
+        const nx = dx / distance;
+        const nz = dz / distance;
+        const step = Math.min(distance, targetSpeed * dt);
+        customer.x += nx * step;
+        customer.z += nz * step;
+        customer.speed += (targetSpeed - customer.speed) * Math.min(1, dt * 4);
+        customer.faceYaw = Math.atan2(nx, nz);
+        if (customer.state === 'queue') customer.atSlot = false;
+      } else {
+        customer.speed += (0 - customer.speed) * Math.min(1, dt * 6);
+        customer.faceYaw = -this.ownInward * Math.PI / 2;
+        if (customer.state === 'queue') customer.atSlot = true;
+      }
+      if (customer.state === 'waitFood') {
+        customer.orderTimer -= dt;
+        if (customer.orderTimer <= 0) this.sendAway(customer, 'Sayang, nilipas na!');
+      }
+    } else if (customer.state === 'eat') {
+      // Finished meal — stand a moment, then head out.
+      customer.speed += (0 - customer.speed) * Math.min(1, dt * 6);
+      if (customer.timer <= 0) this.sendAway(customer);
+    } else if (customer.state === 'leave') {
+      // Walk off the market edge, then recycle.
+      const dx = customer.targetX - customer.x;
+      const dz = customer.targetZ - customer.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance > 0.7) {
+        const targetSpeed = customer.speed > 0.1 ? customer.speed : 1.5;
+        const nx = dx / distance;
+        const nz = dz / distance;
+        const step = Math.min(distance, targetSpeed * dt);
+        customer.x += nx * step;
+        customer.z += nz * step;
+        customer.speed += (targetSpeed - customer.speed) * Math.min(1, dt * 4);
+        customer.faceYaw = Math.atan2(nx, nz);
+      } else {
+        customer.active = false;
+        customer.avatar.root.visible = false;
+        customer.speed = 0;
+      }
     } else {
       customer.speed += (0 - customer.speed) * Math.min(1, dt * 7);
       if (customer.timer <= 0) {
         this.chooseTarget(customer);
-        customer.state = 'walk';
+        if (customer.queueIndex < 0) customer.state = 'walk';
       }
     }
 
@@ -300,7 +370,12 @@ export class CrowdSystem {
     let delta = customer.faceYaw - current;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     customer.avatar.root.rotation.y = current + delta * Math.min(1, dt * 7);
-    customer.avatar.update(dt, elapsed + customer.bob, customer.state === 'walk' ? customer.speed : 0.001);
+    const moving =
+      customer.state === 'walk' ||
+      customer.state === 'queue' ||
+      customer.state === 'waitFood' ||
+      customer.state === 'leave';
+    customer.avatar.update(dt, elapsed + customer.bob, moving ? customer.speed : 0.001);
   }
 
   private browseYaw(customer: Customer): number {
@@ -321,6 +396,10 @@ export class CrowdSystem {
   }
 
   private chooseTarget(customer: Customer): void {
+    // Food stalls run a real queue — hungry shoppers line up at the counter.
+    if (this.ownIsFood && this.ownConfigured && this.rng() < 0.5 && this.tryJoinQueue(customer)) {
+      return;
+    }
     const roll = this.rng();
     if (this.ownConfigured && roll < 0.38) {
       // Walk up to the player's counter.
@@ -379,7 +458,8 @@ export class CrowdSystem {
     let best: Customer | null = null;
     let bestD = radius;
     for (const c of this.customers) {
-      if (!c.active || c.state === 'chat') continue;
+      if (!c.active || c.state === 'chat' || c.queueIndex >= 0) continue;
+      if (c.state === 'waitFood' || c.state === 'eat' || c.state === 'leave') continue;
       const d = Math.hypot(c.x - x, c.z - z);
       if (d < bestD) {
         bestD = d;
@@ -392,6 +472,9 @@ export class CrowdSystem {
   /** Player-initiated chat: the shopper turns, greets and gossips for a few seconds. */
   talkTo(customer: Customer, px: number, pz: number): boolean {
     if (!customer.active || customer.talkCd > 0) return false;
+    if (customer.queueIndex >= 0 || customer.state === 'waitFood' || customer.state === 'eat' || customer.state === 'leave') {
+      return false;
+    }
     const other = customer.chatPartner;
     if (other && other.state === 'chat') {
       other.state = 'scan';
@@ -408,6 +491,155 @@ export class CrowdSystem {
     customer.avatar.say(pick(this.rng, ['Kumusta!', 'Uy!', 'Hello, uy!']), 1.6);
     customer.avatar.react();
     return true;
+  }
+
+  // --- Karendero queue -------------------------------------------------
+
+  private queueSlotPos(index: number): { x: number; z: number } {
+    return { x: this.ownX + this.ownInward * 3.35, z: this.ownZ + 1.4 + index * 1.75 };
+  }
+
+  private waitSpotPos(index: number): { x: number; z: number } {
+    const spots = [
+      { x: this.ownX + this.ownInward * 3.35, z: this.ownZ - 2.4 },
+      { x: this.ownX + this.ownInward * 4.7, z: this.ownZ - 0.6 },
+      { x: this.ownX + this.ownInward * 4.7, z: this.ownZ - 3.4 },
+    ];
+    return spots[index % spots.length];
+  }
+
+  /** Claim the lowest free queue slot; false when the line is full. */
+  private tryJoinQueue(customer: Customer): boolean {
+    const used = new Set<number>();
+    for (const c of this.customers) {
+      if (c.active && c.state === 'queue') used.add(c.queueIndex);
+    }
+    let slot = -1;
+    for (let i = 0; i < 4; i++) {
+      if (!used.has(i)) {
+        slot = i;
+        break;
+      }
+    }
+    if (slot < 0) return false;
+    const pos = this.queueSlotPos(slot);
+    customer.queueIndex = slot;
+    customer.state = 'queue';
+    customer.atSlot = false;
+    customer.targetX = pos.x;
+    customer.targetZ = pos.z;
+    customer.timer = 0;
+    return true;
+  }
+
+  /** Shift everyone in line up after the front customer leaves. */
+  private advanceQueue(): void {
+    const queued = this.customers
+      .filter((c) => c.active && c.state === 'queue')
+      .sort((a, b) => a.queueIndex - b.queueIndex);
+    queued.forEach((c, i) => {
+      if (c.queueIndex !== i) {
+        c.queueIndex = i;
+        const pos = this.queueSlotPos(i);
+        c.targetX = pos.x;
+        c.targetZ = pos.z;
+        c.atSlot = false;
+      }
+    });
+  }
+
+  /** The customer at the front of the line, ready to order. */
+  queueFront(): Customer | null {
+    for (const c of this.customers) {
+      if (c.active && c.state === 'queue' && c.queueIndex === 0 && c.atSlot) return c;
+    }
+    return null;
+  }
+
+  frontSlotPos(): { x: number; z: number } {
+    return this.queueSlotPos(0);
+  }
+
+  queueLength(): number {
+    return this.customers.filter((c) => c.active && c.state === 'queue').length;
+  }
+
+  /** Order taken — the customer leaves the line and waits for their plate. */
+  startOrderFlow(customer: Customer, dishId: string, dishName: string): void {
+    customer.orderDish = dishId;
+    customer.orderDishName = dishName;
+    customer.queueIndex = -1;
+    customer.state = 'waitFood';
+    customer.orderTimer = 55;
+    const used = new Set<number>();
+    for (const c of this.customers) {
+      if (c.active && c.state === 'waitFood') used.add(c.waitIndex);
+    }
+    let wi = -1;
+    for (let i = 0; i < 3; i++) {
+      if (!used.has(i)) {
+        wi = i;
+        break;
+      }
+    }
+    customer.waitIndex = wi < 0 ? 2 : wi;
+    const pos = this.waitSpotPos(customer.waitIndex);
+    customer.targetX = pos.x;
+    customer.targetZ = pos.z;
+    customer.speed = 0;
+    customer.avatar.say(`1 ${dishName}`, 7);
+    this.advanceQueue();
+  }
+
+  /** Plate served — the customer eats for a moment, then leaves happy. */
+  markServed(customer: Customer): void {
+    customer.state = 'eat';
+    customer.timer = 3.4;
+    customer.speed = 0;
+    customer.avatar.say(pick(this.rng, ['Salamat!', 'Sarap!', 'Ang saya!']), 2.6);
+    customer.avatar.react();
+  }
+
+  /** Send a customer off the market — angry line optional. */
+  private sendAway(customer: Customer, line?: string): void {
+    if (line) customer.avatar.say(line, 2.2);
+    customer.state = 'leave';
+    customer.queueIndex = -1;
+    const dir = this.ownInward > 0 ? -1 : 1;
+    customer.targetX = dir * 15;
+    customer.targetZ = customer.z + range(this.rng, -5, 5);
+    customer.speed = 0;
+    this.advanceQueue();
+  }
+
+  /** Nearest customer waiting for a plate — for the serve prompt. */
+  nearestWaiting(x: number, z: number, radius: number): Customer | null {
+    let best: Customer | null = null;
+    let bestD = radius;
+    for (const c of this.customers) {
+      if (!c.active || c.state !== 'waitFood') continue;
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  /** Nearest waitFood customer holding a specific dish. */
+  nearestWaitingForDish(x: number, z: number, radius: number, dishId: string): Customer | null {
+    let best: Customer | null = null;
+    let bestD = radius;
+    for (const c of this.customers) {
+      if (!c.active || c.state !== 'waitFood' || c.orderDish !== dishId) continue;
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best;
   }
 
   get activeCount(): number {

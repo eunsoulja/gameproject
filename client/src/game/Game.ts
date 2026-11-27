@@ -43,6 +43,11 @@ import { AudioManager } from './AudioManager';
 import { BuildingGenerator } from './BuildingGenerator';
 import { CollisionSystem } from './CollisionSystem';
 import { CrowdSystem, type Customer } from './CrowdSystem';
+import {
+  KARENDERO_MAX_ORDERS,
+  KARENDERO_ORDER_TTL_MS,
+  type KarenderoOrderInfo,
+} from '../../../shared/karendero';
 import { Environment } from './Environment';
 import { IntroCinematic } from './IntroCinematic';
 import { FloatingText } from './FloatingText';
@@ -111,6 +116,15 @@ export class Game {
   private npcTalkTarget: Customer | null = null;
   private npcTalkItem: Interactable | null = null;
   private lastNpcTalk = -10;
+  private karenOrders: KarenderoOrderInfo[] = [];
+  private heldDish: { dishId: string; dishName: string } | null = null;
+  private karenServeNpc: Customer | null = null;
+  private karenServePos = new THREE.Vector3();
+  private karenOrderItem: Interactable | null = null;
+  private karenPickupItem: Interactable | null = null;
+  private karenServeItem: Interactable | null = null;
+  private karenBusy = false;
+  private lastKarenAction = -10;
   private lastServeInFlight = false;
   private intro: IntroCinematic | null = null;
   private introPlayed = false;
@@ -495,7 +509,7 @@ export class Game {
     this.remotePlayers.setSelfId(profile.id);
     this.ensurePlayer(profile);
     this.lastPlotIndex = profile.plotIndex;
-    this.crowd.setOwnStall(profile.plotIndex);
+    this.crowd.setOwnStall(profile.plotIndex, this.ownPlotIsFood());
     this.plotManager.setState(this.plots, profile.id, profile);
     this.plotManager.updateStock(profile);
     this.hud.setProfile(profile);
@@ -538,7 +552,7 @@ export class Game {
     this.profileReceivedAt = Date.now();
     this.ensurePlayer(profile);
     this.lastPlotIndex = profile.plotIndex;
-    this.crowd.setOwnStall(profile.plotIndex);
+    this.crowd.setOwnStall(profile.plotIndex, this.ownPlotIsFood());
     this.hud.setProfile(profile);
     this.weather.set(profile.weather.condition, this.activeEvent);
     this.upgradeMenu.refresh(profile);
@@ -785,6 +799,62 @@ export class Game {
       });
     }
 
+    // Karendero mode — food stalls run take-order → cook → pickup → serve.
+    this.karenOrderItem = null;
+    this.karenPickupItem = null;
+    this.karenServeItem = null;
+    if (this.ownPlotIsFood() && profile) {
+      const slot = PLOT_SLOTS[profile.plotIndex];
+      if (slot) {
+        const inward = slot.side === 'west' ? 1 : -1;
+        const front = this.crowd.frontSlotPos();
+        this.karenOrderItem = {
+          id: 'karen-order',
+          position: new THREE.Vector3(front.x, 1.1, front.z),
+          radius: 2.4,
+          title: 'Take order',
+          subtitle: 'Customer at the counter',
+          priority: 0.6,
+          enabled: () =>
+            this.crowd.queueFront() != null &&
+            this.karenOrders.length < KARENDERO_MAX_ORDERS &&
+            this.elapsed - this.lastKarenAction > 1.3,
+          action: () => this.takeKarenOrder(),
+        };
+        items.push(this.karenOrderItem);
+
+        this.karenPickupItem = {
+          id: 'karen-pickup',
+          position: new THREE.Vector3(slot.x + inward * 3.1, 1.1, slot.z),
+          radius: 2.2,
+          title: 'Pick up order',
+          subtitle: 'Finished plates on the counter',
+          priority: 0.7,
+          enabled: () =>
+            this.karenOrders.some((o) => !o.picked && o.readyAt <= Date.now()) &&
+            this.elapsed - this.lastKarenAction > 1.0,
+          action: () => this.pickupKarenFood(),
+        };
+        items.push(this.karenPickupItem);
+
+        this.karenServeItem = {
+          id: 'karen-serve',
+          position: this.karenServePos,
+          radius: 2.5,
+          title: 'Serve dish',
+          subtitle: 'Match the plate to the customer',
+          priority: 0.8,
+          enabled: () =>
+            this.karenServeNpc != null &&
+            this.heldDish != null &&
+            this.karenServeNpc.orderDish === this.heldDish.dishId &&
+            this.elapsed - this.lastKarenAction > 1.0,
+          action: () => this.serveKarenDish(),
+        };
+        items.push(this.karenServeItem);
+      }
+    }
+
     // Chat prompt tracks whichever shopper is nearest — position is mutated per-frame.
     this.npcTalkItem = {
       id: 'npc-talk',
@@ -820,6 +890,15 @@ export class Game {
     this.interaction.setItems(items);
   }
 
+  /** True when the player's stall serves street food — enables karendero mode. */
+  private ownPlotIsFood(): boolean {
+    const profile = this.profile;
+    if (!profile) return false;
+    const own = this.plots.find((p) => p.ownerId === profile.id);
+    const cats = own?.categories ?? profile.unlockedCategories;
+    return cats.includes('streetFood');
+  }
+
   /** Track the nearest shopper so the chat prompt follows them around. */
   private updateNpcTalkTarget(): void {
     const item = this.npcTalkItem;
@@ -835,6 +914,162 @@ export class Game {
       item.title = `Chat with ${npc.name}`;
       item.subtitle = 'Friendly market gossip';
     }
+  }
+
+  /** Keep karendero prompts, order timers and the serve target fresh. */
+  private updateKarendero(): void {
+    const now = Date.now();
+    const p = this.player?.position;
+    // Drop orders that went cold; drop a held plate whose order vanished.
+    this.karenOrders = this.karenOrders.filter((o) => o.expiresAt > now);
+    if (
+      this.heldDish &&
+      !this.karenOrders.some((o) => o.picked && o.dishId === this.heldDish!.dishId)
+    ) {
+      this.heldDish = null;
+    }
+
+    const orderItem = this.karenOrderItem;
+    if (orderItem) {
+      const front = this.crowd.queueFront();
+      orderItem.title = front ? `Take order — ${front.name}` : 'Take order';
+      orderItem.subtitle = front
+        ? `${this.crowd.queueLength()} in line · ${this.karenOrders.length}/${KARENDERO_MAX_ORDERS} cooking`
+        : 'No one at the counter';
+    }
+
+    const pickupItem = this.karenPickupItem;
+    if (pickupItem) {
+      const ready = this.karenOrders.filter((o) => !o.picked && o.readyAt <= now).sort((a, b) => a.readyAt - b.readyAt);
+      const cooking = this.karenOrders
+        .filter((o) => !o.picked && o.readyAt > now)
+        .sort((a, b) => a.readyAt - b.readyAt)[0];
+      if (ready.length) {
+        pickupItem.title = `Pick up ${ready[0].dishName}`;
+        pickupItem.subtitle = `Ready · ${peso(ready[0].price)}`;
+      } else if (cooking) {
+        pickupItem.title = 'Pick up order';
+        pickupItem.subtitle = `On the stove… ${Math.max(1, Math.ceil((cooking.readyAt - now) / 1000))}s`;
+      } else {
+        pickupItem.title = 'Pick up order';
+        pickupItem.subtitle = this.heldDish ? `Holding ${this.heldDish.dishName}` : 'No orders yet';
+      }
+    }
+
+    const serveItem = this.karenServeItem;
+    if (!serveItem || !p) {
+      this.karenServeNpc = null;
+      return;
+    }
+    // Prefer the waiter whose dish matches the plate in hand.
+    const match = this.heldDish
+      ? this.crowd.nearestWaitingForDish(p.x, p.z, 2.8, this.heldDish.dishId)
+      : null;
+    const npc = match ?? this.crowd.nearestWaiting(p.x, p.z, 2.8);
+    this.karenServeNpc = npc;
+    if (npc) {
+      this.karenServePos.set(npc.x, 1.2, npc.z);
+      serveItem.title = `Serve ${npc.name}`;
+      const wants = npc.orderDishName ?? 'a plate';
+      serveItem.subtitle = this.heldDish
+        ? this.heldDish.dishId === npc.orderDish
+          ? `They ordered ${wants} — hand it over`
+          : `They ordered ${wants} · you hold ${this.heldDish.dishName}`
+        : `They ordered ${wants} — pick up the food first`;
+    } else {
+      serveItem.subtitle = this.heldDish ? `Holding ${this.heldDish.dishName}` : 'No customers waiting';
+    }
+  }
+
+  /** Take an order from the front of the queue — starts the cook timer. */
+  private takeKarenOrder(): void {
+    const front = this.crowd.queueFront();
+    if (!front || this.karenBusy) return;
+    this.karenBusy = true;
+    this.lastKarenAction = this.elapsed;
+    void this.network.takeOrder().then((res) => {
+      this.karenBusy = false;
+      if (!res.ok || !res.data) {
+        this.notifications?.show({ kind: 'warning', title: 'Cannot take order', message: res.error ?? 'Try again.' }, 2400);
+        return;
+      }
+      const o = res.data;
+      const now = Date.now();
+      this.crowd.startOrderFlow(front, o.dishId, o.dishName);
+      this.karenOrders.push({
+        dishId: o.dishId,
+        dishName: o.dishName,
+        price: o.price,
+        readyAt: now + o.readyInMs,
+        expiresAt: now + o.readyInMs + KARENDERO_ORDER_TTL_MS,
+        picked: false,
+      });
+      const at = this.player?.position.clone();
+      if (at) {
+        at.y += 2.4;
+        this.floatingText.spawn(at, `Order: ${o.dishName}`, 'info');
+      }
+      this.audio.click();
+    });
+  }
+
+  /** Pick up a finished plate — fills the player's hands. */
+  private pickupKarenFood(): void {
+    if (this.karenBusy) return;
+    this.karenBusy = true;
+    this.lastKarenAction = this.elapsed;
+    void this.network.pickupFood().then((res) => {
+      this.karenBusy = false;
+      if (!res.ok || !res.data) {
+        this.notifications?.show({ kind: 'warning', title: 'Nothing to pick up', message: res.error ?? 'Try again.' }, 2400);
+        return;
+      }
+      const d = res.data;
+      this.heldDish = { dishId: d.dishId, dishName: d.dishName };
+      const order = this.karenOrders.find((o) => !o.picked && o.dishId === d.dishId);
+      if (order) order.picked = true;
+      const at = this.player?.position.clone();
+      if (at) {
+        at.y += 2.4;
+        this.floatingText.spawn(at, `Picked up ${d.dishName} — serve it hot!`, 'info');
+      }
+      this.audio.click();
+    });
+  }
+
+  /** Hand the held plate to the matching customer — pays out. */
+  private serveKarenDish(): void {
+    const npc = this.karenServeNpc;
+    const held = this.heldDish;
+    if (!npc || !held || this.karenBusy) return;
+    if (npc.orderDish !== held.dishId) {
+      const at = npc.avatar.position.clone();
+      at.y += 2.3;
+      this.floatingText.spawn(at, `Wrong order — they want ${npc.orderDishName ?? 'something else'}`, 'info');
+      return;
+    }
+    this.karenBusy = true;
+    this.lastKarenAction = this.elapsed;
+    void this.network.serveDish(held.dishId).then((res) => {
+      this.karenBusy = false;
+      if (!res.ok || !res.data) {
+        this.notifications?.show({ kind: 'warning', title: 'Cannot serve', message: res.error ?? 'Try again.' }, 2400);
+        return;
+      }
+      const sale = res.data;
+      this.crowd.markServed(npc);
+      this.karenOrders = this.karenOrders.filter((o) => !(o.picked && o.dishId === held.dishId));
+      this.heldDish = null;
+      const at = this.player?.position.clone() ?? npc.avatar.position.clone();
+      at.y += 2.2;
+      this.floatingText.cash(sale.revenue + sale.tip, at);
+      this.audio.sale();
+      this.cameraRig.pulseFov(2.5);
+      if (sale.tip > 0) {
+        this.floatingText.spawn(at.clone().add(new THREE.Vector3(0.9, 0.4, 0)), `tip +${peso(sale.tip)}`, 'info');
+      }
+      window.setTimeout(() => this.audio.cash(), 180);
+    });
   }
 
   /** Hands-on counter sale — full price plus tips, server-authoritative. */
@@ -1174,6 +1409,7 @@ export class Game {
     this.remotePlayers.update(dt, this.elapsed);
     this.crowd.update(dt, this.elapsed);
     this.updateNpcTalkTarget();
+    this.updateKarendero();
     this.market.update(dt, this.elapsed);
     this.umbrellas.update(dt, this.elapsed);
     this.plotManager.update(dt, this.elapsed);

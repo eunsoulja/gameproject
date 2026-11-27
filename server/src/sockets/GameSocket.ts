@@ -109,6 +109,29 @@ export function registerGameSockets(io: Server, game: GameService): void {
       });
     });
 
+    socket.on('takeOrder', (ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 100)) return { ok: false, error: 'Slow down a moment.' };
+        return game.takeKarenderoOrder(socket.id);
+      });
+    });
+
+    socket.on('pickupFood', (ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 100)) return { ok: false, error: 'Slow down a moment.' };
+        return game.pickupKarenderoFood(socket.id);
+      });
+    });
+
+    socket.on('serveDish', (payload: unknown, ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 100)) return { ok: false, error: 'Slow down a moment.' };
+        const p = (payload ?? {}) as Record<string, unknown>;
+        if (typeof p.dishId !== 'string') return { ok: false, error: 'Invalid dish.' };
+        return game.serveKarenderoDish(socket.id, p.dishId);
+      });
+    });
+
     socket.on('setPrice', (payload: unknown, ack: Ack) => {
       safe(ack, () => {
         if (!rateLimit(socket, 80)) return { ok: false, error: 'Slow down a moment.' };

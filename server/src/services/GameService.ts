@@ -20,6 +20,14 @@ import {
   type UpgradeBranch,
 } from '../../../shared/config';
 import { plotSlot, spawnForPlot } from '../../../shared/layout';
+import {
+  KARENDERO_DISHES,
+  KARENDERO_MAX_ORDERS,
+  KARENDERO_ORDER_TTL_MS,
+  type KarenderoOrderInfo,
+  type KarenderoOrderReceipt,
+  type KarenderoPickup,
+} from '../../../shared/karendero';
 import type {
   Ack,
   Appearance,
@@ -140,6 +148,8 @@ export class GameService {
   private negotiationDay = new Map<string, number>();
   private offers = new Map<string, PendingOffer>();
   private haggles = new Map<string, PendingHaggle>();
+  private karenderoOrders = new Map<string, Array<KarenderoOrderInfo & { served?: boolean }>>();
+  private lastOrderAt = new Map<string, number>();
   private rushUntil = 0;
   private nextRushAt = 0;
   private nextOfferAt = 0;
@@ -779,6 +789,155 @@ export class GameService {
       tip,
       balance: profile.balance,
       customer,
+    };
+  }
+
+  /** Live orders for a player, pruning anything that went cold. */
+  private activeOrders(profileId: string, now: number) {
+    const list = (this.karenderoOrders.get(profileId) ?? []).filter(
+      (o) => !o.served && o.expiresAt > now,
+    );
+    this.karenderoOrders.set(profileId, list);
+    return list;
+  }
+
+  private karenderoSpotCheck(record: PlayerRecord): string | null {
+    const slot = plotSlot(record.profile.plotIndex);
+    const dx = record.position.x - slot.x;
+    const dz = record.position.z - slot.z;
+    return Math.hypot(dx, dz) > 9 ? 'Step up to your own stall counter.' : null;
+  }
+
+  /** Take an order at the counter — the stove starts cooking immediately. */
+  takeKarenderoOrder(socketId: string): Ack<KarenderoOrderReceipt> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    const profile = record.profile;
+    const now = Date.now();
+    const spotError = this.karenderoSpotCheck(record);
+    if (spotError) return { ok: false, error: spotError };
+    if (!profile.unlockedCategories.includes('streetFood')) {
+      return { ok: false, error: 'Only food stalls take orders — unlock street food first.' };
+    }
+    if (now - (this.lastOrderAt.get(profile.id) ?? 0) < 1400) {
+      return { ok: false, error: 'One order at a time — finish the last one.' };
+    }
+    const orders = this.activeOrders(profile.id, now);
+    if (orders.length >= KARENDERO_MAX_ORDERS) {
+      return { ok: false, error: 'The counter is swamped — serve someone first.' };
+    }
+    const dish = KARENDERO_DISHES[Math.floor(Math.random() * KARENDERO_DISHES.length)];
+    let price = Math.round(dish.price * firstNightBoost(profile));
+    if (profile.dailyChallenge?.id === 'premiumNight') price = Math.round(price * 1.15);
+    const order: KarenderoOrderInfo & { served?: boolean } = {
+      dishId: dish.id,
+      dishName: dish.name,
+      price,
+      readyAt: now + dish.cookMs,
+      expiresAt: now + dish.cookMs + KARENDERO_ORDER_TTL_MS,
+      picked: false,
+    };
+    orders.push(order);
+    this.karenderoOrders.set(profile.id, orders);
+    this.lastOrderAt.set(profile.id, now);
+    return { ok: true, data: { ...order, balance: profile.balance, readyInMs: dish.cookMs } };
+  }
+
+  /** Pick up a finished plate — marks the order held by the player. */
+  pickupKarenderoFood(socketId: string): Ack<KarenderoPickup> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    const profile = record.profile;
+    const now = Date.now();
+    const spotError = this.karenderoSpotCheck(record);
+    if (spotError) return { ok: false, error: spotError };
+    const orders = this.activeOrders(profile.id, now);
+    if (orders.some((o) => o.picked && !o.served)) {
+      return { ok: false, error: 'Your hands are full — serve the plate first.' };
+    }
+    const ready = orders.find((o) => !o.picked && !o.served && o.readyAt <= now);
+    if (!ready) {
+      const next = orders
+        .filter((o) => !o.picked && !o.served)
+        .sort((a, b) => a.readyAt - b.readyAt)[0];
+      const secs = next ? Math.max(1, Math.ceil((next.readyAt - now) / 1000)) : 0;
+      return {
+        ok: false,
+        error: secs ? `Still on the stove — about ${secs}s left.` : 'No orders waiting.',
+      };
+    }
+    ready.picked = true;
+    const next = orders
+      .filter((o) => !o.picked && !o.served)
+      .sort((a, b) => a.readyAt - b.readyAt)[0];
+    return {
+      ok: true,
+      data: {
+        dishId: ready.dishId,
+        dishName: ready.dishName,
+        price: ready.price,
+        nextInSec: next ? Math.max(0, Math.ceil((next.readyAt - now) / 1000)) : 0,
+      },
+    };
+  }
+
+  /** Serve the held plate to the matching customer — pays out and clears the order. */
+  serveKarenderoDish(socketId: string, dishId: string): Ack<SaleReceipt> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    const profile = record.profile;
+    const now = Date.now();
+    const spotError = this.karenderoSpotCheck(record);
+    if (spotError) return { ok: false, error: spotError };
+    const orders = this.activeOrders(profile.id, now);
+    const order = orders.find((o) => o.dishId === dishId && o.picked && !o.served);
+    if (!order) {
+      const held = orders.find((o) => o.picked && !o.served);
+      return {
+        ok: false,
+        error: held
+          ? `Wrong plate — you picked up ${held.dishName}.`
+          : 'Pick up the food first.',
+      };
+    }
+    order.served = true;
+
+    const sukiRush = profile.dailyChallenge?.id === 'sukiRush';
+    const tip = Math.random() < 0.3 ? Math.round(order.price * (0.1 + Math.random() * 0.25) * (sukiRush ? 1.5 : 1)) : 0;
+    const total = order.price + tip;
+    profile.balance += total;
+    profile.today.revenue += total;
+    profile.today.customers += 1;
+    profile.lifetime.totalRevenue += total;
+    profile.lifetime.totalEarnings += total;
+    profile.lifetime.totalCustomers += 1;
+    profile.reputation = Math.min(100, profile.reputation + 0.22);
+
+    const notices: EconomyNotice[] = [];
+    updateQuestProgress(profile, 1, total, 1, notices);
+    for (const notice of notices) this.notifyRecord(record, notice);
+
+    this.saveService.recordTransaction(
+      profile.id,
+      'sale',
+      total,
+      profile.balance,
+      `${order.dishName} (karendero)`,
+    );
+    this.emitProfile(record);
+    void this.saveService.save(this.serializeRecord(record)!);
+
+    return {
+      ok: true,
+      data: {
+        productId: order.dishId,
+        productName: order.dishName,
+        quantity: 1,
+        revenue: order.price,
+        tip,
+        balance: profile.balance,
+        customer: 'local',
+      },
     };
   }
 
