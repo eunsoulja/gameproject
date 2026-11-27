@@ -878,6 +878,10 @@ export class Game {
         if (!this.crowd.talkTo(npc, p.x, p.z)) return;
         this.lastNpcTalk = this.elapsed;
         this.audio.click();
+        try {
+          const key = 'merkado.npcChats';
+          localStorage.setItem(key, String((Number(localStorage.getItem(key)) || 0) + 1));
+        } catch { /* storage unavailable */ }
       },
     };
     items.push(this.npcTalkItem);

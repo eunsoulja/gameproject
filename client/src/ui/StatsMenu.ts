@@ -88,6 +88,12 @@ export class StatsMenu {
                 <b>${(profile.lifetime.karenderoServed ?? 0).toLocaleString('en-PH')}</b>
                 <small>Best streak ×${profile.lifetime.karenderoBestStreak ?? 0}</small>
               </div>
+              <div class="ledger-figure">
+                <span class="ledger-fig-icon" style="--c:#9fd6a0">${icon('chat', 15)}</span>
+                <span class="ledger-fig-label">NPC chats</span>
+                <b>${(() => { try { return (Number(localStorage.getItem('merkado.npcChats')) || 0).toLocaleString('en-PH'); } catch { return '0'; } })()}</b>
+                <small>Friendly gossip exchanged</small>
+              </div>
             </div>
           </section>
 
