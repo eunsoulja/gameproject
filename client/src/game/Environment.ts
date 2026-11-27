@@ -641,6 +641,11 @@ export class Environment {
     this.lightning = Math.max(0, this.lightning - dt * 2.6);
     this.eventVisual = visual;
     this.applyTime(progress);
+    // Golden hour makes the lanterns swell; near close they gutter down.
+    const hour = (8 + progress * 18) % 24;
+    const duskK = hour >= 16.4 && hour < 19.6 ? clamp(1 - Math.abs(hour - 17.8) / 1.8, 0, 1) : 0;
+    const closeK = progress > 0.9 ? clamp((progress - 0.9) / 0.08, 0, 1) : 0;
+    const lampK = (1 + duskK * 0.55) * (1 - closeK * 0.55);
     this.sky.position.set(focus.x, 0, focus.z);
     this.moon.position.set(focus.x - 138, 155, focus.z - 185);
     this.moonHalo.position.copy(this.moon.position);
@@ -651,11 +656,12 @@ export class Environment {
 
     const flicker = visual === 'outage' ? 0.28 : 1;
     for (const entry of this.pointLights) {
-      entry.light.intensity = entry.base * flicker;
+      entry.light.intensity = entry.base * flicker * lampK;
     }
     for (const sprite of this.warmSprites) {
       const material = sprite.material as THREE.SpriteMaterial;
-      material.opacity = (0.6 + Math.sin(this.elapsed * 2.4 + sprite.position.z) * 0.055) * flicker;
+      material.opacity =
+        (0.6 + Math.sin(this.elapsed * 2.4 + sprite.position.z) * 0.055) * flicker * lampK;
       // December parol season — lamp halos drift red and green like festival lights.
       if (this.festive) {
         material.color.setHSL(Math.sin(sprite.position.z * 0.7) > 0 ? 0.0 : 0.33, 0.72, 0.6);
