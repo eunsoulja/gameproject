@@ -35,6 +35,8 @@ export interface Customer {
   reactCd: number;
   /** Vendor stall index while minding a shop (-1 = shopper). */
   vendorIndex: number;
+  /** Regular customer — queues at food stalls far more often. */
+  suki: boolean;
   faceYaw: number;
   active: boolean;
   bob: number;
@@ -73,6 +75,13 @@ const PLAYER_LINES = [
   'Isang beses lang, ha!', 'Hoy, ang sarap ng kwarta mo!',
   'Salamat sa pag-join!', 'Uy, ang galing mo, angas!',
   'Hoy brader! Masarap dito, di ba?', 'Kumusta sa tindahan!',
+];
+// What suki regulars say back to the player.
+const SUKI_LINES = [
+  'Uy, suki na kita dito ah!', 'Kain na tayo, ang sarap ng silog!',
+  'Alam mo na ang order ko, di ba?', 'Hoy, ang lakas ng pila kanina!',
+  'Suki treatment dapat, ha!', 'Gabi-gabi na akong bumabalik!',
+  'Hoy, masarap ang kape mo!', 'Kumusta sa karinderya!',
 ];
 // Shared-payong greetings when it rains.
 const UMBRELLA_LINES = [
@@ -237,6 +246,7 @@ export class CrowdSystem {
       bob: index * 0.13,
       hasUmbrella: index % 5 < 2,
       role: isKid ? 'kid' : isElder ? 'elder' : index % 9 === 0 ? 'sleeper' : index % 7 === 0 ? 'linger' : 'walker',
+      suki: index % 13 === 2,
     };
   }
 
@@ -472,7 +482,7 @@ export class CrowdSystem {
       customer.chatLine -= dt;
       if (customer.chatLine <= 0) {
         customer.chatLine = range(this.rng, 1.4, 2.1);
-        const lines = partner ? AMBIENT_LINES : PLAYER_LINES;
+        const lines = partner ? AMBIENT_LINES : customer.suki ? SUKI_LINES : PLAYER_LINES;
         customer.avatar.say(pick(this.rng, lines));
         if (this.rng() < 0.35) customer.avatar.react();
       }
@@ -604,7 +614,13 @@ export class CrowdSystem {
 
   private chooseTarget(customer: Customer): void {
     // Food stalls run a real queue — hungry shoppers line up at the counter.
-    if (this.ownIsFood && this.ownConfigured && this.rng() < 0.5 && this.tryJoinQueue(customer)) {
+    // Suki regulars practically live at the karendero counter.
+    if (
+      this.ownIsFood &&
+      this.ownConfigured &&
+      this.rng() < (customer.suki ? 0.85 : 0.5) &&
+      this.tryJoinQueue(customer)
+    ) {
       return;
     }
     // Rest stop — plaza benches invite a spell of people-watching.
