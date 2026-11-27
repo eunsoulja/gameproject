@@ -76,11 +76,20 @@ const CATEGORY_CANOPY: Record<StallCategory, [string, string]> = {
   ukay: ['#79528c', '#e7dccf'],
 };
 
+const AWNING_PRESETS: Record<string, [string, string]> = {
+  '': ['#c68a34', '#f2e0ba'],
+  red: ['#a83c32', '#f5e9d0'],
+  teal: ['#2e6f8e', '#e8f0f2'],
+  green: ['#4a7a3f', '#f2e8c9'],
+  purple: ['#6d4a8c', '#efe4f5'],
+};
+
 /** Owns the 16 vendor bays: empty filler stalls, neighbour stalls and the player's own bay. */
 export class PlotManager {
   private scene: THREE.Scene;
   private collision: CollisionSystem;
   private rng: Random;
+  private awningColor = '';
   private views: SlotView[] = [];
   private steam: Array<{ sprite: THREE.Sprite; base: THREE.Vector3; phase: number }> = [];
   private steamTexture: THREE.Texture | null = null;
@@ -129,6 +138,14 @@ export class PlotManager {
     this.setState([], '', null);
   }
 
+  /** Awning stripe preset for the player's own stall — forces a rebuild via signature. */
+  setAwningColor(color: string): void {
+    if (color === this.awningColor) return;
+    this.awningColor = color;
+    const own = this.views.find((v) => v.isSelf);
+    if (own) own.signature = '';
+  }
+
   setState(plots: PublicPlot[], selfId: string, profile: PlayerProfile | null): void {
     const byIndex = new Map<number, PublicPlot>();
     for (const plot of plots) {
@@ -158,7 +175,7 @@ export class PlotManager {
   private signatureFor(plot: PublicPlot | null, isSelf: boolean, profile: PlayerProfile | null): string {
     if (!plot) return 'empty';
     if (isSelf && profile) {
-      return `own|${profile.businessName}|${profile.plotIndex}|${profile.unlockedCategories.join(',')}|${Object.keys(profile.chosenUpgrades).sort().join(',')}`;
+      return `own|${profile.businessName}|${profile.plotIndex}|${profile.unlockedCategories.join(',')}|${Object.keys(profile.chosenUpgrades).sort().join(',')}|awning:${this.awningColor}`;
     }
     return `other|${plot.ownerId}|${plot.businessName}|${plot.categories.join(',')}|${plot.upgrades.join(',')}|${plot.online ? 1 : 0}|${plot.stallCount}`;
   }
@@ -220,7 +237,7 @@ export class PlotManager {
     const centerX = front + outward * 1.35;
     const category = plot?.categories[0] ?? 'streetFood';
     const [primary, secondary] = isSelf
-      ? ['#c68a34', '#f2e0ba']
+      ? AWNING_PRESETS[this.awningColor] ?? AWNING_PRESETS['']
       : plot
         ? CATEGORY_CANOPY[category]
         : [pick(this.rng, ['#64707a', '#6e665a', '#5c6b66']), '#d8cfbf'];

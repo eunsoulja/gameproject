@@ -84,6 +84,16 @@ export class SettingsMenu {
             ${this.swatchRow('Pants', 'pants', PANTS)}
             ${this.swatchRow('Skin', 'skin', SKIN)}
             ${this.swatchRow('Hair', 'hair', HAIR)}
+            <div class="setting-row">
+              <label for="awning-select">Awning stripes</label>
+              <select id="awning-select" class="select-input" data-setting="awningColor">
+                <option value="" ${!settings.awningColor ? 'selected' : ''}>Classic gold</option>
+                <option value="red" ${settings.awningColor === 'red' ? 'selected' : ''}>Silog red</option>
+                <option value="teal" ${settings.awningColor === 'teal' ? 'selected' : ''}>Deep teal</option>
+                <option value="green" ${settings.awningColor === 'green' ? 'selected' : ''}>Leaf green</option>
+                <option value="purple" ${settings.awningColor === 'purple' ? 'selected' : ''}>Ube purple</option>
+              </select>
+            </div>
             <div class="settings-actions">
               <button type="button" class="btn-gold" data-save-appearance>${icon('save', 12)} Save look</button>
               <button type="button" class="btn-ghost" data-reset-camera>${icon('refresh', 12)} Reset camera</button>
@@ -192,6 +202,9 @@ export class SettingsMenu {
         this.opts.settings.set('quality', select.value as QualitySetting);
         const side = select.closest('.settings-group')?.querySelector('.settings-group-head span');
         if (side) side.textContent = `${select.value} quality`;
+        this.opts.onSettingsChanged(this.opts.settings.current);
+      } else if (select.dataset.setting === 'awningColor') {
+        this.opts.settings.set('awningColor', select.value);
         this.opts.onSettingsChanged(this.opts.settings.current);
       }
     });

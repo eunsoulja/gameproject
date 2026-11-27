@@ -1307,6 +1307,10 @@ export class Game {
     this.crowd?.setNameTagsVisible(settings.showNames);
     this.crowd?.setQuality(settings.quality);
     this.weather.setEnabled(settings.weatherEffects);
+    if (this.plotManager && this.profile) {
+      this.plotManager.setAwningColor(settings.awningColor);
+      this.plotManager.setState(this.plots, this.profile.id, this.profile);
+    }
   }
 
   /** Toggle the bloom pipeline — lantern glow and neon signage only bloom on medium+. */

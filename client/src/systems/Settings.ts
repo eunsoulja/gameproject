@@ -13,6 +13,7 @@ export interface GameSettings {
   invertDrag: boolean;
   cameraShake: boolean;
   showFps: boolean;
+  awningColor: string;
 }
 
 const STORAGE_KEY = 'merkado.settings.v1';
@@ -30,6 +31,7 @@ const DEFAULTS: GameSettings = {
   invertDrag: false,
   cameraShake: true,
   showFps: false,
+  awningColor: '',
 };
 
 /** Small persisted settings store shared by the renderer, audio and camera. */
@@ -94,6 +96,7 @@ export class SettingsManager {
         invertDrag: typeof parsed.invertDrag === 'boolean' ? parsed.invertDrag : DEFAULTS.invertDrag,
         cameraShake: typeof parsed.cameraShake === 'boolean' ? parsed.cameraShake : DEFAULTS.cameraShake,
         showFps: typeof parsed.showFps === 'boolean' ? parsed.showFps : DEFAULTS.showFps,
+        awningColor: typeof parsed.awningColor === 'string' ? parsed.awningColor : DEFAULTS.awningColor,
       };
     } catch {
       return { ...DEFAULTS };
