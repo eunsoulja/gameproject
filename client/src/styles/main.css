@@ -708,22 +708,7 @@ input::placeholder {
     radial-gradient(120% 100% at 50% 100%, rgba(11, 26, 37, 0.62), transparent 55%);
 }
 
-.weather-rain {
-  position: absolute;
-  inset: -30%;
-  opacity: 0;
-  background-image:
-    repeating-linear-gradient(102deg, transparent 0 34px, rgba(190, 220, 245, 0.12) 34px 35px, transparent 35px 72px);
-  background-size: 140px 180px;
-  animation: rainScroll 0.5s linear infinite;
-}
-#weather-overlay.rainy .weather-rain { opacity: 0.55; }
-#weather-overlay.typhoon .weather-rain { opacity: 1; animation-duration: 0.26s; }
-
-@keyframes rainScroll {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-70px, 180px, 0); }
-}
+/* Rain streaks live in 3D now (RainParticles) — the overlay only tints the sky. */
 
 #flash-overlay {
   position: fixed;
