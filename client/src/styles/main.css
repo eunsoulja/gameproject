@@ -1,5 +1,6 @@
 @import url('./hud.css');
 @import url('./menus.css');
+@import url('./cartoon.css');
 
 :root {
   --bg: #060a11;
@@ -11,20 +12,24 @@
   --text: #f7f3e9;
   --muted: #9aa4b2;
   --muted-2: #6f7a89;
-  --amber: #f1b457;
-  --amber-strong: #ffd083;
-  --amber-deep: #b77c27;
-  --green: #7bd88f;
+  --amber: #ffb02e;
+  --amber-strong: #ffd166;
+  --amber-deep: #d97e17;
+  --green: #5ec46a;
   --green-deep: #2f8d55;
-  --red: #e76e62;
-  --blue: #6fb8e8;
-  --purple: #b799e5;
-  --teal: #63d3b0;
+  --red: #ff5a45;
+  --blue: #4fa8e0;
+  --purple: #a97fe0;
+  --teal: #3ec9a7;
+  --ink: #1c1008;
+  --ink-soft: #3a2412;
+  --paper: #fff3d6;
   --radius: 18px;
   --radius-sm: 12px;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-hard: 6px 6px 0 rgba(12, 6, 2, 0.85);
   --font: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-display: 'Lilita One', 'Arial Black', 'Segoe UI', sans-serif;
   --mono: 'SFMono-Regular', Consolas, monospace;
 }
 
