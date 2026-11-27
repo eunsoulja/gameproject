@@ -325,6 +325,14 @@ export class Avatar {
       this.leftArm.rotation.z = 0.35;
       this.rightArm.rotation.z = -0.35;
       this.body.position.y = bob + Math.abs(Math.sin(elapsed * 9)) * 0.12;
+    } else if (e === 'spin') {
+      // Full twirl — arms out, body rotates.
+      this.leftArm.rotation.x = -1.2;
+      this.rightArm.rotation.x = -1.2;
+      this.leftArm.rotation.z = 1.1;
+      this.rightArm.rotation.z = -1.1;
+      this.body.rotation.y = (elapsed * 9) % (Math.PI * 2);
+      this.body.position.y = bob + 0.05;
     } else {
       this.leftArm.rotation.x = -armSwing;
       this.rightArm.rotation.x = armSwing;

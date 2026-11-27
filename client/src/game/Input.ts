@@ -82,6 +82,7 @@ export class Input {
       if (event.code === 'Digit2') this.emoteQueued = 'dance';
       if (event.code === 'Digit3') this.emoteQueued = 'point';
       if (event.code === 'Digit4') this.emoteQueued = 'cheer';
+      if (event.code === 'Digit5') this.emoteQueued = 'spin';
       if (event.code === 'KeyM') this.muteQueued = true;
       if (event.code === 'KeyF') this.fullscreenQueued = true;
       if (event.code === 'KeyR') this.resetCameraQueued = true;
