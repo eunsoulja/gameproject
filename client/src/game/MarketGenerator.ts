@@ -53,7 +53,7 @@ const JEEPNEY_PAINT = ['#b7372f', '#e0a72f', '#2f6f9a', '#3f8055', '#9b4a7e'];
 interface StallSpot {
   side: -1 | 1;
   z: number;
-  depthRow: 0 | 1;
+  depthRow: 0 | 1 | 2;
   label?: string;
   category?: StallCategory;
 }
@@ -84,6 +84,7 @@ export class MarketGenerator {
     if (this.built) return;
     this.built = true;
     this.buildStallRows();
+    this.buildTianggeAlley();
     this.buildJeepneys();
     this.buildCarts();
     this.buildStreetClutter();
@@ -155,6 +156,36 @@ export class MarketGenerator {
     }
   }
 
+  /** A deeper "suki alley" of small tarps tucked behind the main rows. */
+  private buildTianggeAlley(): void {
+    const spots: StallSpot[] = [];
+    // Two pockets where the alley opens up — avoids the side streets.
+    const ranges: Array<[number, number]> = [
+      [WORLD.playableMinZ + 10, -60],
+      [120, WORLD.playableMaxZ - 10],
+    ];
+    for (const side of [-1, 1] as Array<-1 | 1>) {
+      for (const [start, end] of ranges) {
+        let z = start + range(this.rng, 0, 3);
+        while (z < end) {
+          const width = range(this.rng, 3.0, 4.0);
+          if (this.nearSideStreet(z, width / 2 + 3)) {
+            z += 4;
+            continue;
+          }
+          spots.push({
+            side,
+            z: z + width / 2,
+            depthRow: 2,
+            label: this.rng() > 0.5 ? 'ALLEY' : undefined,
+          });
+          z += width + range(this.rng, 0.8, 2.2);
+        }
+      }
+    }
+    for (const spot of spots) this.buildStall(spot);
+  }
+
   private nearSideStreet(z: number, margin: number): boolean {
     return WORLD.sideStreets.some((street) => Math.abs(z - street) < WORLD.sideStreetHalfWidth + margin);
   }
@@ -165,12 +196,12 @@ export class MarketGenerator {
       spot.category ??
       pick(this.rng, ['fruit', 'streetFood', 'driedFish', 'ukay'] as StallCategory[]);
     const [primary, secondary] = pick(this.rng, CANOPY_COLORS);
-    const frontX = depthRow === 0 ? 9.9 : 14.1;
-    const depth = depthRow === 0 ? range(this.rng, 2.8, 3.3) : range(this.rng, 2.2, 2.7);
+    const frontX = depthRow === 0 ? 9.9 : depthRow === 1 ? 14.1 : 18.8;
+    const depth = depthRow === 0 ? range(this.rng, 2.8, 3.3) : range(this.rng, 2.1, 2.7);
     const centerX = side * (frontX + depth / 2);
-    const width = depthRow === 0 ? range(this.rng, 4.2, 5.2) : range(this.rng, 3.4, 4.4);
-    const counterY = depthRow === 0 ? 0.96 : 0.88;
-    const roofY = depthRow === 0 ? range(this.rng, 2.55, 2.85) : range(this.rng, 2.25, 2.5);
+    const width = depthRow === 0 ? range(this.rng, 4.2, 5.2) : range(this.rng, 3.2, 4.3);
+    const counterY = depthRow === 0 ? 0.96 : depthRow === 1 ? 0.88 : 0.8;
+    const roofY = depthRow === 0 ? range(this.rng, 2.55, 2.85) : depthRow === 1 ? range(this.rng, 2.25, 2.5) : range(this.rng, 2.05, 2.3);
     const wood = pick(this.rng, ['#6b4c33', '#77553a', '#5c412c', '#816044']);
     const legColor = '#403024';
     const front = side * frontX; // the edge facing the street
