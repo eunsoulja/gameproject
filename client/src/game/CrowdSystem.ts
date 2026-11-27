@@ -5,15 +5,19 @@ import type { QualitySetting } from '../systems/Settings';
 import { CrowdAvatar } from './CrowdAvatar';
 import { clamp, makeRng, pick, range, type Random } from './utils';
 
-interface Customer {
+export interface Customer {
   avatar: CrowdAvatar;
+  name: string;
   x: number;
   z: number;
   targetX: number;
   targetZ: number;
   speed: number;
-  state: 'walk' | 'browse' | 'scan';
+  state: 'walk' | 'browse' | 'scan' | 'chat';
   timer: number;
+  chatLine: number;
+  chatPartner: Customer | null;
+  talkCd: number;
   faceYaw: number;
   active: boolean;
   bob: number;
@@ -25,6 +29,35 @@ const SHIRTS = ['#d9534a', '#3f8ccc', '#f0b64c', '#63a56c', '#9a66c4', '#ef8a52'
 const PANTS = ['#283449', '#1a1f2a', '#414f63', '#665d4d', '#53313a', '#2f433c'];
 const SKINS = ['#f2d2b4', '#e4b58d', '#c99767', '#a66e45', '#7d4f2f'];
 const HAIRS = ['#191210', '#2e1f18', '#53331e', '#7f4b28', '#c79a55', '#24222c'];
+const NAMES = [
+  'Aling Nena', 'Mang Domeng', 'Child Care', 'Chef Boy', 'Tita Rosie',
+  'Kuya Jayson', 'Manang Inday', 'Dodong', 'Perla', 'Ramon',
+  'Lorna', 'Edong', 'Fe Dela Cruz', 'Gorio', 'Hetty',
+  'Isko', 'Jing', 'Kulas', 'Luningning', 'Mando',
+  'Narding', 'Onyok', 'Pacing', 'Quilo', 'Rosing',
+  'Susing', 'Tatang', 'Uling', 'Vangie', 'Wena',
+];
+// Market chatter between neighbors.
+const AMBIENT_LINES = [
+  'Kumusta! Suki na kita ah!', 'Grabe, ang ganda ng prutas!',
+  'Sige na, takbo na tayo!', 'Ang sarap ngulé!', 'Bayad na! Salamat ha!',
+  'Sukli ha!', 'Ang init ng:init!', 'Sukli ko muna, ha!',
+  'Pabili ka na ng danggit?', 'Uy, anong klaseng tawad iyan?',
+  'Gising ka na, dilaw na!', 'Balik-balik ulit bukas, ha!',
+  'Sarap ng kape sa may kanto!', 'Ingatan ka sa kanto, madulas!',
+  'Tara, punta na tayo sa pizza!', 'Hoy, sulit ba iyan?',
+  'Ang saya-saya ng mga bata!', 'Pirmi nangyayari ang ganyan!',
+];
+// Replies aimed at the player who walks up and chats.
+const PLAYER_LINES = [
+  'Kumusta! Good day, uy!', 'Uy, suki to! Balik-balik!',
+  'Ang lakas ng tindahan mo!', 'Sarap ng amoy dito, ha!',
+  'Sige, subukan ko iyan!', 'Ang bait mo, thank you!',
+  'Isang beses lang, ha!', 'Hoy, ang sarap ng kwarta mo!',
+  'Salamat sa pag-join!', 'Uy, ang galing mo, angas!',
+  'Hoy brader! Masarap dito, di ba?', 'Kumusta sa tindahan!',
+  'Uy, kilala kita! Angas vendor ka!', 'Sarap ng lugar na ito!',
+];
 
 /** Ambient shoppers and browsers that make Colon feel alive. */
 export class CrowdSystem {
@@ -119,6 +152,7 @@ export class CrowdSystem {
     avatar.root.position.set(x, 0, z);
     return {
       avatar,
+      name: NAMES[index % NAMES.length],
       x,
       z,
       targetX: x,
@@ -126,6 +160,9 @@ export class CrowdSystem {
       speed: 0,
       state: 'scan',
       timer: range(this.rng, 0, 2),
+      chatLine: 0,
+      chatPartner: null,
+      talkCd: 0,
       faceYaw: 0,
       active: false,
       bob: index * 0.13,
@@ -169,8 +206,10 @@ export class CrowdSystem {
   }
 
   private updateCustomer(customer: Customer, dt: number, elapsed: number): void {
+    customer.talkCd = Math.max(0, customer.talkCd - dt);
     // Sleepers doze on the walkway — they mostly stand still, shifting weight.
-    if (customer.role === 'sleeper') {
+    // A shopper pulled into a chat wakes up for the conversation.
+    if (customer.role === 'sleeper' && customer.state !== 'chat') {
       customer.timer -= dt;
       customer.speed += (0 - customer.speed) * Math.min(1, dt * 3);
       if (customer.timer <= 0) {
@@ -188,8 +227,13 @@ export class CrowdSystem {
     customer.timer -= dt;
     if (customer.state === 'scan') {
       if (customer.timer <= 0) {
-        this.chooseTarget(customer);
-        customer.state = 'walk';
+        // Neighbors stop to gossip now and then — pairs face off and chat.
+        if (this.rng() < 0.12 && this.tryStartChat(customer)) {
+          // handled inside tryStartChat
+        } else {
+          this.chooseTarget(customer);
+          customer.state = 'walk';
+        }
       }
       customer.speed += (0 - customer.speed) * Math.min(1, dt * 5);
     } else if (customer.state === 'walk') {
@@ -214,6 +258,33 @@ export class CrowdSystem {
         customer.speed += (targetSpeed - customer.speed) * Math.min(1, dt * 4);
         customer.faceYaw = Math.atan2(nx, nz);
       }
+    } else if (customer.state === 'chat') {
+      // Standing conversation — face the partner (or the player) and trade lines.
+      customer.speed += (0 - customer.speed) * Math.min(1, dt * 6);
+      const partner = customer.chatPartner;
+      if (partner) {
+        const pdx = partner.x - customer.x;
+        const pdz = partner.z - customer.z;
+        if (Math.hypot(pdx, pdz) > 0.2) customer.faceYaw = Math.atan2(pdx, pdz);
+      }
+      customer.chatLine -= dt;
+      if (customer.chatLine <= 0) {
+        customer.chatLine = range(this.rng, 1.4, 2.1);
+        const lines = partner ? AMBIENT_LINES : PLAYER_LINES;
+        customer.avatar.say(pick(this.rng, lines));
+        if (this.rng() < 0.35) customer.avatar.react();
+      }
+      if (customer.timer <= 0) {
+        customer.state = 'scan';
+        customer.timer = range(this.rng, 0.5, 1.8);
+        const other = customer.chatPartner;
+        if (other && other.state === 'chat') {
+          other.state = 'scan';
+          other.timer = range(this.rng, 0.5, 1.8);
+          other.chatPartner = null;
+        }
+        customer.chatPartner = null;
+      }
     } else {
       customer.speed += (0 - customer.speed) * Math.min(1, dt * 7);
       if (customer.timer <= 0) {
@@ -224,7 +295,7 @@ export class CrowdSystem {
 
     customer.avatar.root.position.set(customer.x, 0, customer.z);
     // Browsers lean in toward the stall — a tiny posture cue that sells the stall visit.
-    customer.avatar.setLean(customer.state === 'browse' ? 0.12 : 0);
+    customer.avatar.setLean(customer.state === 'browse' ? 0.12 : customer.state === 'chat' ? 0.07 : 0);
     const current = customer.avatar.root.rotation.y;
     let delta = customer.faceYaw - current;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
@@ -273,6 +344,70 @@ export class CrowdSystem {
     const distance = range(this.rng, 14, 48);
     customer.targetX = clamp(customer.x + range(this.rng, -6, 6), -8.2, 8.2);
     customer.targetZ = clamp(customer.z + direction * distance, WORLD.playableMinZ + 6, WORLD.playableMaxZ - 6);
+  }
+
+  /** Pair two nearby shoppers into a short gossip session. */
+  private tryStartChat(customer: Customer): boolean {
+    let partner: Customer | null = null;
+    let best = 4.4;
+    for (const other of this.customers) {
+      if (other === customer || !other.active || other.state === 'chat') continue;
+      if (other.state !== 'scan' && other.state !== 'browse') continue;
+      const d = Math.hypot(other.x - customer.x, other.z - customer.z);
+      if (d < best) {
+        best = d;
+        partner = other;
+      }
+    }
+    if (!partner) return false;
+    const duration = range(this.rng, 3.5, 6.5);
+    customer.state = 'chat';
+    customer.chatPartner = partner;
+    customer.timer = duration;
+    customer.chatLine = range(this.rng, 0.2, 1.0);
+    customer.speed = 0;
+    partner.state = 'chat';
+    partner.chatPartner = customer;
+    partner.timer = duration;
+    partner.chatLine = range(this.rng, 0.9, 1.9);
+    partner.speed = 0;
+    return true;
+  }
+
+  /** Nearest chat-able shopper to a world position — used for the talk prompt. */
+  nearestForTalk(x: number, z: number, radius: number): Customer | null {
+    let best: Customer | null = null;
+    let bestD = radius;
+    for (const c of this.customers) {
+      if (!c.active || c.state === 'chat') continue;
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  /** Player-initiated chat: the shopper turns, greets and gossips for a few seconds. */
+  talkTo(customer: Customer, px: number, pz: number): boolean {
+    if (!customer.active || customer.talkCd > 0) return false;
+    const other = customer.chatPartner;
+    if (other && other.state === 'chat') {
+      other.state = 'scan';
+      other.timer = range(this.rng, 0.4, 1.5);
+      other.chatPartner = null;
+    }
+    customer.chatPartner = null;
+    customer.state = 'chat';
+    customer.timer = range(this.rng, 3, 4.5);
+    customer.chatLine = 0.25;
+    customer.talkCd = 7;
+    customer.speed = 0;
+    customer.faceYaw = Math.atan2(px - customer.x, pz - customer.z);
+    customer.avatar.say(pick(this.rng, ['Kumusta!', 'Uy!', 'Hello, uy!']), 1.6);
+    customer.avatar.react();
+    return true;
   }
 
   get activeCount(): number {

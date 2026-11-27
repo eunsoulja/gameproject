@@ -17,6 +17,11 @@ export class CrowdAvatar {
   private leanTarget = 0;
   private storm = 0;
   private stormTarget = 0;
+  private bubble: THREE.Sprite | null = null;
+  private bubbleCtx: CanvasRenderingContext2D | null = null;
+  private bubbleTex: THREE.CanvasTexture | null = null;
+  private bubbleLife = 0;
+  private cheer = 0;
 
   constructor(appearance: Appearance, scale = 1) {
     const parts: THREE.BufferGeometry[] = [];
@@ -111,6 +116,77 @@ export class CrowdAvatar {
     this.stormTarget = value;
   }
 
+  /** Show a speech bubble above the head for a moment — market gossip. */
+  say(text: string, hold = 2.8): void {
+    if (!this.bubble) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 288;
+      canvas.height = 88;
+      this.bubbleCtx = canvas.getContext('2d');
+      this.bubbleTex = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: this.bubbleTex,
+        transparent: true,
+        depthWrite: false,
+      });
+      this.bubble = new THREE.Sprite(material);
+      this.bubble.scale.set(1.95, 0.6, 1);
+      this.bubble.position.set(0, 2.52, 0);
+      this.bubble.renderOrder = 6;
+      this.bubble.visible = false;
+      this.root.add(this.bubble);
+    }
+    const ctx = this.bubbleCtx!;
+    const canvas = ctx.canvas;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Rounded paper bubble with an ink outline.
+    ctx.fillStyle = '#fffaf0';
+    ctx.strokeStyle = '#201814';
+    ctx.lineWidth = 5;
+    const r = 18;
+    ctx.beginPath();
+    ctx.moveTo(r + 8, 8);
+    ctx.lineTo(canvas.width - r, 8);
+    ctx.quadraticCurveTo(canvas.width - 8, 8, canvas.width - 8, r + 8);
+    ctx.lineTo(canvas.width - 8, canvas.height - r - 10);
+    ctx.quadraticCurveTo(canvas.width - 8, canvas.height - 8, canvas.width - r - 8, canvas.height - 8);
+    ctx.lineTo(r + 8, canvas.height - 8);
+    ctx.quadraticCurveTo(8, canvas.height - 8, 8, canvas.height - r - 10);
+    ctx.lineTo(8, r + 8);
+    ctx.quadraticCurveTo(8, 8, r + 8, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Tail pointing down at the speaker.
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 9, canvas.height - 7);
+    ctx.lineTo(canvas.width / 2, canvas.height - 1);
+    ctx.lineTo(canvas.width / 2 + 9, canvas.height - 7);
+    ctx.closePath();
+    ctx.fillStyle = '#fffaf0';
+    ctx.fill();
+    ctx.stroke();
+    // Text — shrink to fit.
+    let size = 25;
+    ctx.font = `700 ${size}px "Lilita One", "Segoe UI", sans-serif`;
+    while (ctx.measureText(text).width > canvas.width - 34 && size > 15) {
+      size -= 1;
+      ctx.font = `700 ${size}px "Lilita One", "Segoe UI", sans-serif`;
+    }
+    ctx.fillStyle = '#241a12';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2 - 4);
+    this.bubbleTex!.needsUpdate = true;
+    this.bubble.visible = true;
+    this.bubbleLife = hold;
+  }
+
+  /** A little happy hop — used when a shopper enjoys your company. */
+  react(): void {
+    this.cheer = 1;
+  }
+
   get position(): THREE.Vector3 {
     return this.root.position;
   }
@@ -118,6 +194,8 @@ export class CrowdAvatar {
   update(dt: number, elapsed: number, speed: number): void {
     this.lean += (this.leanTarget - this.lean) * Math.min(1, dt * 6);
     this.storm += (this.stormTarget - this.storm) * Math.min(1, dt * 2.5);
+    this.cheer += (0 - this.cheer) * Math.min(1, dt * 1.6);
+    if (this.bubbleLife > 0) this.bubbleLife -= dt;
     const storm = this.storm;
     const idle = speed <= 0.08 ? 1 : 0;
     const browse = Math.min(1, this.lean / 0.12);
@@ -148,6 +226,19 @@ export class CrowdAvatar {
     } else {
       this.mesh.position.z += (0 - this.mesh.position.z) * Math.min(1, dt * 6);
     }
+    // Cheer hop — a happy bounce when chatting or greeted.
+    if (this.cheer > 0.02) {
+      this.mesh.position.y += Math.abs(Math.sin(elapsed * 9 + this.phase)) * 0.15 * this.cheer;
+      this.mesh.rotation.z += Math.sin(elapsed * 9 + this.phase) * 0.06 * this.cheer;
+    }
+    // Speech bubble fades on its own timer and bobs gently.
+    if (this.bubble) {
+      if (this.bubbleLife > 0) {
+        this.bubble.position.y = 2.52 + Math.sin(elapsed * 3 + this.phase) * 0.045;
+      } else {
+        this.bubble.visible = false;
+      }
+    }
     // Storm crouch — shoppers hunch low against the wind.
     const crouch = 1 - storm * 0.16;
     this.mesh.scale.y += (crouch - this.mesh.scale.y) * Math.min(1, dt * 3);
@@ -164,6 +255,10 @@ export class CrowdAvatar {
   dispose(): void {
     this.geometry.dispose();
     this.material.dispose();
+    if (this.bubble) {
+      (this.bubble.material as THREE.SpriteMaterial).dispose();
+      this.bubbleTex?.dispose();
+    }
     this.umbrellaGroup.traverse((child) => {
       const mesh = child as THREE.Mesh;
       if (mesh.isMesh) {

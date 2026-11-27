@@ -42,7 +42,7 @@ import { currentProgress, escapeHtml, nextTier, peso } from '../ui/format';
 import { AudioManager } from './AudioManager';
 import { BuildingGenerator } from './BuildingGenerator';
 import { CollisionSystem } from './CollisionSystem';
-import { CrowdSystem } from './CrowdSystem';
+import { CrowdSystem, type Customer } from './CrowdSystem';
 import { Environment } from './Environment';
 import { IntroCinematic } from './IntroCinematic';
 import { FloatingText } from './FloatingText';
@@ -107,6 +107,10 @@ export class Game {
   private emoteUntil = 0;
   private lastEmoteSent: string | null = null;
   private lastServeAttempt = -10;
+  private npcTalkPos = new THREE.Vector3();
+  private npcTalkTarget: Customer | null = null;
+  private npcTalkItem: Interactable | null = null;
+  private lastNpcTalk = -10;
   private lastServeInFlight = false;
   private intro: IntroCinematic | null = null;
   private introPlayed = false;
@@ -781,6 +785,26 @@ export class Game {
       });
     }
 
+    // Chat prompt tracks whichever shopper is nearest — position is mutated per-frame.
+    this.npcTalkItem = {
+      id: 'npc-talk',
+      position: this.npcTalkPos,
+      radius: 2.5,
+      title: 'Chat with a shopper',
+      subtitle: 'Friendly market gossip',
+      priority: -0.5,
+      enabled: () => this.npcTalkTarget != null && this.elapsed - this.lastNpcTalk > 4,
+      action: () => {
+        const npc = this.npcTalkTarget;
+        const p = this.player?.position;
+        if (!npc || !p) return;
+        if (!this.crowd.talkTo(npc, p.x, p.z)) return;
+        this.lastNpcTalk = this.elapsed;
+        this.audio.click();
+      },
+    };
+    items.push(this.npcTalkItem);
+
     items.push({
       id: 'market-board',
       position: new THREE.Vector3(0, 0, 102),
@@ -794,6 +818,23 @@ export class Game {
     });
 
     this.interaction.setItems(items);
+  }
+
+  /** Track the nearest shopper so the chat prompt follows them around. */
+  private updateNpcTalkTarget(): void {
+    const item = this.npcTalkItem;
+    const p = this.player?.position;
+    if (!item || !p) {
+      this.npcTalkTarget = null;
+      return;
+    }
+    const npc = this.crowd.nearestForTalk(p.x, p.z, 2.6);
+    this.npcTalkTarget = npc;
+    if (npc) {
+      this.npcTalkPos.set(npc.x, 1.2, npc.z);
+      item.title = `Chat with ${npc.name}`;
+      item.subtitle = 'Friendly market gossip';
+    }
   }
 
   /** Hands-on counter sale — full price plus tips, server-authoritative. */
@@ -1132,6 +1173,7 @@ export class Game {
 
     this.remotePlayers.update(dt, this.elapsed);
     this.crowd.update(dt, this.elapsed);
+    this.updateNpcTalkTarget();
     this.market.update(dt, this.elapsed);
     this.umbrellas.update(dt, this.elapsed);
     this.plotManager.update(dt, this.elapsed);
