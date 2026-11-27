@@ -107,6 +107,7 @@ export class MarketGenerator {
     this.buildAlleyDetails();
     this.buildLaundry();
     this.buildVendingAndDock();
+    this.buildChalkboards();
 
     addMergedMesh(this.scene, this.structural, MATERIALS.structure(), 'market-structure');
     addMergedMesh(this.scene, this.fabric, MATERIALS.fabric(), 'market-canopies');
@@ -1019,6 +1020,44 @@ export class MarketGenerator {
         // Sack of goods on top.
         this.structural.push(sphere(0.3, pick(this.rng, ['#a68a5d', '#8c744f']), { x, y: 0.55, z }, 7));
       }
+    }
+  }
+
+  /** A-frame chalkboards touting the day's specials in front of stalls. */
+  private buildChalkboards(): void {
+    const SPECIALS = [
+      'Sisig meal ₱120', 'Danggit 2 for ₱150', 'Halo-halo ₱45',
+      'Lechon liempo ₱180', 'Fresh bangus ₱160/kg', 'Ukay ukay 50% off',
+      'Kape barako ₱20', 'Siomai 6 pcs ₱60', 'Buko juice ₱35',
+      'Taho ₱25', 'Pancit canton ₱55', 'Chicharon ₱80',
+      'Manggang isda ₱140', 'Bibingka ₱30', 'Fruit shake ₱40',
+    ];
+    for (let i = 0; i < 14; i++) {
+      const side = this.rng() > 0.5 ? 1 : -1;
+      const z = range(this.rng, WORLD.playableMinZ + 4, WORLD.playableMaxZ - 4);
+      if (this.nearSideStreet(z, 3)) continue;
+      if (z > -26 && z < 94) continue;
+      const x = side * range(this.rng, 8.1, 8.7);
+      const text = pick(this.rng, SPECIALS);
+      let texture = this.signTextures.get(`chalk:${text}`);
+      if (!texture) {
+        texture = makeLabelTexture(text, '#f5eeda', '#22322c');
+        this.signTextures.set(`chalk:${text}`, texture);
+      }
+      const board = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.05, 0.72),
+        new THREE.MeshBasicMaterial({ map: texture, toneMapped: false, side: THREE.DoubleSide }),
+      );
+      board.position.set(x, 1.02, z);
+      board.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+      board.rotation.x = -0.32; // easel tilt toward the shopper
+      this.scene.add(board);
+      this.signMeshes.push(board);
+      // A-frame legs.
+      this.metal.push(box(0.05, 1.0, 0.05, '#4a3d2c', { x: x - side * 0.28, y: 0.5, z: z - 0.3, rx: 0.35 }));
+      this.metal.push(box(0.05, 1.0, 0.05, '#4a3d2c', { x: x - side * 0.28, y: 0.5, z: z + 0.3, rx: -0.35 }));
+      this.metal.push(box(0.05, 1.0, 0.05, '#4a3d2c', { x: x + side * 0.28, y: 0.5, z: z - 0.3, rx: -0.35 }));
+      this.metal.push(box(0.05, 1.0, 0.05, '#4a3d2c', { x: x + side * 0.28, y: 0.5, z: z + 0.3, rx: 0.35 }));
     }
   }
 
