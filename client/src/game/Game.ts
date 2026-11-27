@@ -334,10 +334,16 @@ export class Game {
   private bindWindowEvents(): void {
     const resize = (): void => {
       if (!this.viewCamera) return;
-      this.viewCamera.aspect = window.innerWidth / window.innerHeight;
+      // innerWidth can lag a frame behind visualViewport on mobile/zoom —
+      // prefer the visual viewport when it reports a sane size.
+      const vw = window.visualViewport;
+      const w = vw && vw.width > 0 ? vw.width : window.innerWidth;
+      const h = vw && vw.height > 0 ? vw.height : window.innerHeight;
+      this.viewCamera.aspect = w / h;
       this.viewCamera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      this.composer?.setSize(window.innerWidth, window.innerHeight);
+      this.renderer.setSize(w, h);
+      this.composer?.setSize(w, h);
+      this.lastFrame = 0;
     };
     const visibility = (): void => {
       this.lastFrame = 0;
@@ -350,9 +356,20 @@ export class Game {
       this.cameraRig.snap(this.player.position, this.collision);
     };
     window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+    window.visualViewport?.addEventListener('resize', resize);
+    // Some browsers fire no resize when a window is un-maximised or a monitor
+    // changes — a ResizeObserver on the root catches every layout shift.
+    const ro = new ResizeObserver(resize);
+    ro.observe(document.documentElement);
+    window.addEventListener('load', resize);
     window.addEventListener('merkado:reset-camera', resetCamera);
     document.addEventListener('visibilitychange', visibility);
     this.detachFns.push(() => window.removeEventListener('resize', resize));
+    this.detachFns.push(() => window.removeEventListener('orientationchange', resize));
+    this.detachFns.push(() => window.visualViewport?.removeEventListener('resize', resize));
+    this.detachFns.push(() => ro.disconnect());
+    this.detachFns.push(() => window.removeEventListener('load', resize));
     this.detachFns.push(() => window.removeEventListener('merkado:reset-camera', resetCamera));
     this.detachFns.push(() => document.removeEventListener('visibilitychange', visibility));
   }
