@@ -106,6 +106,7 @@ export class MarketGenerator {
     this.buildStreetClutter();
     this.buildAlleyDetails();
     this.buildLaundry();
+    this.buildVendingAndDock();
 
     addMergedMesh(this.scene, this.structural, MATERIALS.structure(), 'market-structure');
     addMergedMesh(this.scene, this.fabric, MATERIALS.fabric(), 'market-canopies');
@@ -972,6 +973,51 @@ export class MarketGenerator {
         mesh.position.set(cx, y - 0.12, z);
         this.scene.add(mesh);
         this.laundry.push({ mesh, phase: this.rng() * Math.PI * 2 });
+      }
+    }
+  }
+
+  /** Glowing vending machines and pallet stacks for the working edge of town. */
+  private buildVendingAndDock(): void {
+    // Vending machines hum beside the shopfronts — a lit front, a dark body.
+    for (let i = 0; i < 9; i++) {
+      const side = this.rng() > 0.5 ? 1 : -1;
+      const z = range(this.rng, WORLD.playableMinZ + 8, WORLD.playableMaxZ - 8);
+      if (this.nearSideStreet(z, 3)) continue;
+      if (z > -24 && z < 92) continue;
+      const x = side * range(this.rng, 17.5, 18.3);
+      const body = pick(this.rng, ['#a33327', '#27548f', '#2e6e4f', '#8a6d2f']);
+      this.structural.push(box(0.9, 1.85, 0.75, body, { x, y: 0.93, z }));
+      // Lit display window facing the street.
+      this.glow.push(box(0.06, 1.2, 0.55, '#bfe8ff', {
+        x: x - side * 0.46,
+        y: 1.15,
+        z,
+      }));
+      this.structural.push(box(0.08, 0.3, 0.6, '#20242c', {
+        x: x - side * 0.46,
+        y: 0.45,
+        z,
+      }));
+    }
+    // Pallets and hand trucks near the freight end of the street.
+    for (let i = 0; i < 10; i++) {
+      const side = this.rng() > 0.5 ? 1 : -1;
+      const z = range(this.rng, WORLD.playableMinZ + 6, WORLD.playableMaxZ - 6);
+      if (this.nearSideStreet(z, 3.5)) continue;
+      if (z > -22 && z < 90) continue;
+      const x = side * range(this.rng, 17.3, 18.4);
+      const wood = pick(this.rng, ['#8a6b42', '#7a5c38', '#96744a']);
+      for (let layer = 0; layer < (this.rng() > 0.5 ? 2 : 1); layer++) {
+        this.structural.push(box(1.1, 0.09, 1.1, wood, { x, y: 0.12 + layer * 0.12, z }));
+        for (const dz of [-0.45, 0.45]) {
+          this.structural.push(box(0.1, 0.1, 0.1, '#5f4a2e', { x: x - 0.4, y: 0.06 + layer * 0.12, z: z + dz }));
+          this.structural.push(box(0.1, 0.1, 0.1, '#5f4a2e', { x: x + 0.4, y: 0.06 + layer * 0.12, z: z + dz }));
+        }
+      }
+      if (this.rng() > 0.5) {
+        // Sack of goods on top.
+        this.structural.push(sphere(0.3, pick(this.rng, ['#a68a5d', '#8c744f']), { x, y: 0.55, z }, 7));
       }
     }
   }
