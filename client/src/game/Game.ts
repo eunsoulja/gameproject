@@ -30,6 +30,7 @@ import { HUD } from '../ui/HUD';
 import { LoginScreen, type LoginSubmitPayload } from '../ui/LoginScreen';
 import type { MenuContext } from '../ui/MenuContext';
 import { isModalOpen, modalHeader, openModal } from '../ui/Modal';
+import { Confetti } from '../ui/Confetti';
 import { Notifications } from '../ui/Notifications';
 import { OfferMenu } from '../ui/OfferMenu';
 import { ShopMenu } from '../ui/ShopMenu';
@@ -109,6 +110,7 @@ export class Game {
   private lastServeInFlight = false;
   private intro: IntroCinematic | null = null;
   private introPlayed = false;
+  private confetti: Confetti | null = null;
   private onboarded = false;
   private muted = false;
   private earnedBadges = new Set<string>();
@@ -249,9 +251,12 @@ export class Game {
       onPlayerLeft: (id) => this.remotePlayers.remove(id),
       onNotification: (payload) => {
         this.notifications?.show(payload);
-        // Milestone toasts earn a camera punch.
+        // Milestone toasts earn a camera punch; the biggest ones get confetti.
         if (payload.kind === 'success' && /quest|guide|upgrade|stall is open|deal struck/i.test(payload.title)) {
           this.cameraRig?.pulseFov(4.5);
+        }
+        if (/goal complete|legend|quest complete|guide complete|is back|new regular/i.test(payload.title)) {
+          this.confetti?.burst(44);
         }
       },
       onDayReport: (payload) => this.handleDayReport(payload),
@@ -284,6 +289,8 @@ export class Game {
     if (!toastRoot || !hudRoot || !loginRoot || !overlayRoot) throw new Error('User interface elements are missing.');
 
     this.notifications = new Notifications(toastRoot, (kind) => this.audio.notify(kind));
+    const confettiRoot = document.getElementById('confetti-root');
+    this.confetti = confettiRoot ? new Confetti(confettiRoot) : null;
     this.menuContext = {
       getProfile: () => {
         if (!this.profile) throw new Error('No vendor profile is loaded.');
@@ -795,6 +802,7 @@ export class Game {
         }
         this.audio.sale();
         this.cameraRig.pulseFov(2.5);
+        if (sale.tip >= 20) this.confetti?.burst(18, 0.45);
         window.setTimeout(() => this.audio.cash(), 180);
       } else if (!result.ok && result.error && !result.error.includes('breath')) {
         this.notifications?.show({ kind: 'warning', title: 'Cannot serve', message: result.error }, 2600);
