@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS, GOALS, PRODUCTS, upgradeById } from '../../../shared/config';
-import type { PlayerProfile } from '../../../shared/types';
+import type { PlayerProfile, PublicPlot } from '../../../shared/types';
 import { openModal } from './Modal';
 import { escapeHtml, peso } from './format';
 import { icon } from './icons';
@@ -288,6 +288,30 @@ export class StatsMenu {
                   .join('') ||
                 '<div class="ledger-empty">No regulars yet. Keep your prices fair and your shelves full — suki will find you.</div>'
               }
+            </div>
+          </section>
+
+          <section class="ledger-section">
+            <h3>${icon('trophy', 15)} Market leaderboard</h3>
+            <div class="leaderboard-list">
+              ${(() => {
+                const board: PublicPlot[] = [...this.ctx.getPlots()]
+                  .filter((p) => p.totalEarnings > 0)
+                  .sort((a, b) => b.totalEarnings - a.totalEarnings)
+                  .slice(0, 8);
+                if (board.length === 0) {
+                  return '<div class="ledger-empty">No vendors on the board yet tonight.</div>';
+                }
+                return board
+                  .map(
+                    (p, i) => `<div class="leaderboard-row ${p.ownerId === profile.id ? 'me' : ''}">
+                      <span class="lb-rank">${i + 1}</span>
+                      <span class="lb-name">${escapeHtml(p.businessName)}${p.online ? ' <i class="lb-online"></i>' : ''}</span>
+                      <b class="lb-earn">${peso(p.totalEarnings)}</b>
+                    </div>`,
+                  )
+                  .join('');
+              })()}
             </div>
           </section>
         </div>

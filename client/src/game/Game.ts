@@ -309,6 +309,7 @@ export class Game {
       network: this.network,
       onProfile: (profile) => this.handleProfile(profile),
       notify: this.notifications,
+      getPlots: () => this.plots,
     };
 
     this.upgradeMenu = new UpgradeMenu(this.menuContext);
