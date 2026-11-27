@@ -725,6 +725,7 @@ export class Game {
     if (this.renderer) {
       const ratio = Math.min(window.devicePixelRatio || 1, settings.quality === 'low' ? 1 : settings.quality === 'medium' ? 1.5 : 2);
       this.renderer.setPixelRatio(ratio);
+      this.composer?.setPixelRatio(ratio);
       this.renderer.shadowMap.enabled = settings.quality === 'high';
       this.renderer.shadowMap.needsUpdate = true;
       this.applyComposer(settings.quality !== 'low');
@@ -740,7 +741,13 @@ export class Game {
   private applyComposer(enabled: boolean): void {
     if (!this.viewCamera) return;
     if (enabled && !this.composer) {
-      this.composer = new EffectComposer(this.renderer);
+      // Composer targets bypass the canvas's own MSAA — ask for 4x samples
+      // explicitly or medium/high quality renders jagged edges.
+      const target = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+        type: THREE.HalfFloatType,
+        samples: 4,
+      });
+      this.composer = new EffectComposer(this.renderer, target);
       this.composer.addPass(new RenderPass(this.scene, this.viewCamera));
       this.bloomPass = new UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
