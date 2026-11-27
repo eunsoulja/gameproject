@@ -66,6 +66,7 @@ interface PlayerRecord {
   lowStockWarnAt: number;
   lastActionAt: number;
   lastServeAt: number;
+  lastEmployeeSaleAt?: number;
 }
 
 interface PendingOffer {
@@ -1086,6 +1087,23 @@ export class GameService {
     console.log('[game] Rush hour — tour group on the street.');
   }
 
+  /** Each employee works the counter: every ~50s one rings up a sale at 85% price. */
+  private employeeAutoServe(record: PlayerRecord, now: number): void {
+    const profile = record.profile;
+    const staff = profile.employees;
+    if (staff <= 0) return;
+    if (now - (record.lastEmployeeSaleAt ?? 0) < 50_000 / staff) return;
+    const inStock = PRODUCTS.filter((p) => (profile.inventory[p.id] ?? 0) > 0);
+    if (inStock.length === 0) return;
+    const product = inStock[Math.floor(Math.random() * inStock.length)];
+    const quantity = Math.min(2, profile.inventory[product.id] ?? 0);
+    const unit = Math.round(
+      effectiveSellingPrice(profile, product) * firstNightBoost(profile) * 0.85,
+    );
+    record.lastEmployeeSaleAt = now;
+    this.completeCounterSale(record, product, quantity, unit * quantity, now, 'local');
+  }
+
   private simulateMarket(now: number): void {
     const online = this.onlineRecords();
     let activeSales = false;
@@ -1096,6 +1114,7 @@ export class GameService {
       profile.activeEvent = this.activeEvent;
       try {
         const result = simulateSales(profile, now, this.activeEvent, now < this.rushUntil);
+        this.employeeAutoServe(record, now);
         for (const notice of advanceTutorial(profile, now)) {
           this.notifyRecord(record, notice);
           this.emitProfile(record);
