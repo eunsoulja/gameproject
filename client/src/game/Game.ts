@@ -636,6 +636,9 @@ export class Game {
       this.plotManager.setState([], '', null);
       return;
     }
+    // Stall categories can change (unlocks, stall count) — keep the crowd's
+    // karendero flag in sync with the freshest plot data.
+    this.crowd.setOwnStall(this.profile.plotIndex, this.ownPlotIsFood());
     this.plotManager.setState(plots, this.profile.id, this.profile);
     this.refreshInteractions();
   }
