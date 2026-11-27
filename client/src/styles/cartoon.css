@@ -646,6 +646,31 @@ input::placeholder { color: #7d6a4c; }
   cursor: pointer;
 }
 
+/* ── Ledger exception — keep its paper-grain texture, still inked ────────── */
+
+.ledger-modal {
+  border: 3px solid var(--ink);
+  border-radius: 15px;
+  background:
+    radial-gradient(70% 46% at 15% 0%, rgba(255, 179, 79, 0.16), transparent 62%),
+    radial-gradient(55% 45% at 92% 4%, rgba(217, 84, 74, 0.12), transparent 58%),
+    linear-gradient(165deg, #251a11 0%, #180f09 52%, #110b07 100%);
+  box-shadow: var(--shadow-hard), 0 40px 120px rgba(0, 0, 0, 0.7);
+}
+.ledger-modal::before {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: auto;
+  bottom: 0;
+  border: 0;
+  border-radius: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 220, 160, 0.02) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(90deg, rgba(255, 220, 160, 0.016) 0 1px, transparent 1px 7px);
+  opacity: 0.6;
+}
+
 /* ── Scrollbars ──────────────────────────────────────────────────────────── */
 
 .modal-body::-webkit-scrollbar,
