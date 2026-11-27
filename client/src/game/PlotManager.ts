@@ -995,6 +995,28 @@ export class PlotManager {
     if (has('newCategory') && isOwn) {
       glow.push(sphere(0.09, '#b9e78e', { x: front - inward * 0.4, y: 3.02, z: slot.z - width * 0.45 }, 6));
     }
+
+    // Well-kept flourish: stalls with several upgrades earn a parol, plants
+    // and a chalkboard menu — investment you can see from the walkway.
+    const upgradeCount = upgrades.size;
+    if (upgradeCount >= 4) {
+      // Hanging parol under the canopy front.
+      const px = front + inward * 0.3;
+      const pz = slot.z + width * 0.3;
+      metal.push(cylinder(0.01, 0.01, 0.4, 4, '#4a4136', { x: px, y: base.canopyY - 0.2, z: pz }));
+      glow.push(sphere(0.14, '#ff8a5e', { x: px, y: base.canopyY - 0.55, z: pz }, 7));
+      glow.push(sphere(0.05, '#ffd76a', { x: px, y: base.canopyY - 0.42, z: pz }, 6));
+    }
+    if (upgradeCount >= 6) {
+      // Potted plants flanking the counter and a chalkboard menu.
+      for (const dz of [-width * 0.32, width * 0.32]) {
+        structural.push(cylinder(0.14, 0.11, 0.24, 8, '#8a5a3a', { x: front + inward * 0.9, y: base.counterY + 0.12, z: slot.z + dz }));
+        structural.push(sphere(0.22, '#3f8a4a', { x: front + inward * 0.9, y: base.counterY + 0.4, z: slot.z + dz }, 6));
+      }
+      structural.push(box(0.5, 0.6, 0.04, '#2e2a24', { x: front + inward * 0.55, y: base.counterY + 0.75, z: slot.z - width * 0.28 }));
+      glow.push(box(0.4, 0.04, 0.02, '#f4ecd8', { x: front + inward * 0.53, y: base.counterY + 0.82, z: slot.z - width * 0.28 }));
+      glow.push(box(0.32, 0.04, 0.02, '#f4ecd8', { x: front + inward * 0.53, y: base.counterY + 0.72, z: slot.z - width * 0.28 }));
+    }
   }
 
   private addGuard(base: StallBase, x: number, z: number): void {
