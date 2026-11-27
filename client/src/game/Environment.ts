@@ -57,6 +57,9 @@ export class Environment {
   private lightning = 0;
   private elapsed = 0;
   private puddles: THREE.Mesh[] = [];
+  /** Expanding raindrop rings spawned on puddles while it pours. */
+  private rainRings: Array<{ mesh: THREE.Mesh; life: number }> = [];
+  private ringGeometry: THREE.RingGeometry | null = null;
   private roadMaterial: THREE.MeshStandardMaterial | null = null;
   private wetTarget = 0;
   private wetness = 0;
@@ -655,7 +658,7 @@ export class Environment {
     this.elapsed += dt;
     this.lightning = Math.max(0, this.lightning - dt * 2.6);
     this.eventVisual = visual;
-    this.applyTime(progress);
+    this.applyTime(progress, dt);
     // Golden hour makes the lanterns swell; near close they gutter down.
     const hour = (8 + progress * 18) % 24;
     const duskK = hour >= 16.4 && hour < 19.6 ? clamp(1 - Math.abs(hour - 17.8) / 1.8, 0, 1) : 0;
@@ -697,7 +700,7 @@ export class Environment {
     (this.dust.material as THREE.PointsMaterial).opacity = visual === 'outage' ? 0.22 : 0.5;
   }
 
-  private applyTime(progress: number): void {
+  private applyTime(progress: number, dt = 0.016): void {
     const hour = (8 + progress * 18) % 24;
     const daylight =
       hour >= 6 && hour < 17.4
@@ -765,6 +768,33 @@ export class Environment {
       // Rain rings: puddles breathe and shimmer while the sky pours.
       const ripple = wet * (0.06 + 0.05 * Math.sin(this.elapsed * 2.6 + i * 1.9));
       puddle.scale.set(1 + ripple, 1, 1 - ripple * 0.6);
+    }
+    // Raindrop rings expand and fade on random puddles.
+    if (wet > 0.3 && this.puddles.length && this.rainRings.length < 20 && Math.random() < dt * 6) {
+      const puddle = this.puddles[(Math.random() * this.puddles.length) | 0];
+      if (!this.ringGeometry) this.ringGeometry = new THREE.RingGeometry(0.86, 1, 20);
+      const mesh = new THREE.Mesh(
+        this.ringGeometry,
+        new THREE.MeshBasicMaterial({ color: '#a8c8dc', transparent: true, opacity: 0.4, depthWrite: false }),
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(puddle.position.x, 0.035, puddle.position.z);
+      this.scene.add(mesh);
+      this.rainRings.push({ mesh, life: 0 });
+    }
+    for (let i = this.rainRings.length - 1; i >= 0; i--) {
+      const ring = this.rainRings[i];
+      ring.life += dt;
+      const t = ring.life / 1.1;
+      if (t >= 1) {
+        this.scene.remove(ring.mesh);
+        (ring.mesh.material as THREE.Material).dispose();
+        this.rainRings.splice(i, 1);
+        continue;
+      }
+      const s = 0.4 + t * 2.4;
+      ring.mesh.scale.set(s, s, 1);
+      (ring.mesh.material as THREE.MeshBasicMaterial).opacity = 0.42 * (1 - t);
     }
   }
 
