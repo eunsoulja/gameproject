@@ -227,6 +227,8 @@ export interface SaleReceipt {
   upsell?: boolean;
   /** Karendero only — bonus pesos from a fast-service streak. */
   streakBonus?: number;
+  /** Karendero only — star rating the customer gave (1–5). */
+  review?: number;
 }
 
 export interface NotificationPayload {

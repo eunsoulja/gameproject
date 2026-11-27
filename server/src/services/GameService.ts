@@ -920,7 +920,8 @@ export class GameService {
     const sukiRush = profile.dailyChallenge?.id === 'sukiRush';
     const tip = Math.random() < 0.3 ? Math.round(order.price * (0.1 + Math.random() * 0.25) * (sukiRush ? 1.5 : 1)) : 0;
     // Fast hands build a streak — each quick plate adds a small bonus, capped.
-    const fast = now - order.readyAt < 12_000;
+    const waitedMs = now - order.readyAt;
+    const fast = waitedMs < 12_000;
     const streak = fast ? (this.karenderoStreak.get(profile.id) ?? 0) + 1 : 0;
     this.karenderoStreak.set(profile.id, streak);
     const streakBonus = Math.min(streak, 5) * 3;
@@ -931,7 +932,9 @@ export class GameService {
     profile.lifetime.totalRevenue += total;
     profile.lifetime.totalEarnings += total;
     profile.lifetime.totalCustomers += 1;
-    profile.reputation = Math.min(100, profile.reputation + 0.22);
+    // Customer review — hot-and-fast plates earn five stars, slow ones three.
+    const review = waitedMs < 12_000 ? 5 : waitedMs < 30_000 ? 4 : 3;
+    profile.reputation = Math.min(100, profile.reputation + review * 0.07);
 
     const notices: EconomyNotice[] = [];
     updateQuestProgress(profile, 1, total, 1, notices);
@@ -962,6 +965,7 @@ export class GameService {
         customer: 'local',
         upsell,
         streakBonus: streakBonus || undefined,
+        review,
       },
     };
   }

@@ -1087,6 +1087,9 @@ export class Game {
       if (sale.streakBonus) {
         this.floatingText.spawn(at.clone().add(new THREE.Vector3(-0.9, 0.4, 0)), `streak +${peso(sale.streakBonus)}`, 'gain');
       }
+      if (sale.review) {
+        this.floatingText.spawn(at.clone().add(new THREE.Vector3(0, 0.7, 0)), '★'.repeat(sale.review), 'info');
+      }
       window.setTimeout(() => this.audio.cash(), 180);
       if (sale.upsell) this.showUpsellPrompt();
     });
