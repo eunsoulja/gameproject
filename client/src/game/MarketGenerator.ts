@@ -119,7 +119,11 @@ export class MarketGenerator {
       const sprite = this.lights[i];
       const base = 1.1 + (i % 5) * 0.12;
       const pulse = 0.88 + 0.12 * Math.sin(elapsed * 1.4 + i * 2.1);
-      sprite.scale.setScalar(base * pulse * flicker);
+      // Every so often a bulb is "faulty" — it dips and stutters like a dying tube.
+      const faulty = i % 13 === 5;
+      const dropout = faulty && Math.sin(elapsed * 8.3 + i * 1.7) > 0.82 ? 0.25 : 1;
+      const wobble = faulty ? 0.9 + 0.1 * Math.sin(elapsed * 23 + i) : 1;
+      sprite.scale.setScalar(base * pulse * flicker * dropout * wobble);
     }
     for (let i = 0; i < this.signMeshes.length; i++) {
       const material = this.signMeshes[i].material as THREE.MeshBasicMaterial;
@@ -633,7 +637,9 @@ export class MarketGenerator {
         z: lz,
       }, 6));
       if (i % 2 === 0) {
-        const sprite = makeGlowSprite(this.glowTexture, '#ffbd73', range(this.rng, 0.9, 1.45));
+        // Bulbs run warm, candle-gold or a cooler fluorescent — each stall glows differently.
+        const tint = pick(this.rng, ['#ffbd73', '#ffc46b', '#ffe9b0', '#9fd8e8', '#ff9d6b']);
+        const sprite = makeGlowSprite(this.glowTexture, tint, range(this.rng, 0.9, 1.45));
         sprite.position.set(front - side * 0.35, roofY - 0.18, lz);
         this.lights.push(sprite);
       }
