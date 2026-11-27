@@ -15,6 +15,9 @@ export class AudioManager {
   private crowdGain: GainNode | null = null;
   private rainGain: GainNode | null = null;
   private rumbleGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private musicTimer = 0;
+  private musicDegree = 0;
   private started = false;
   private crowdTarget = 0.5;
   private rainTarget = 0;
@@ -41,6 +44,9 @@ export class AudioManager {
       this.effectsBus = context.createGain();
       this.effectsBus.gain.value = 0.75;
       this.effectsBus.connect(this.master);
+      this.musicGain = context.createGain();
+      this.musicGain.gain.value = 0.5;
+      this.musicGain.connect(this.ambienceBus);
       this.noise = this.createNoise(context, 2.5);
       this.buildAmbience(context);
       this.applyVolumes();
@@ -132,6 +138,7 @@ export class AudioManager {
   /** Sparse crickets and distant tricycle bells for night atmosphere. */
   update(dt: number, progress: number, raining: boolean): void {
     if (!this.context || !this.started) return;
+    this.updateMusic(dt, progress, raining);
     const night = progress > 0.72;
     if (!night || raining) return;
     this.chirpTimer -= dt;
@@ -150,6 +157,45 @@ export class AudioManager {
     osc.connect(gain).connect(this.ambienceBus!);
     osc.start(now);
     osc.stop(now + 0.12);
+  }
+
+  /** Sparse kulintang-style plucks on a pentatonic ladder — busier at night. */
+  private updateMusic(dt: number, progress: number, raining: boolean): void {
+    if (!this.context || !this.musicGain) return;
+    this.musicTimer -= dt;
+    if (this.musicTimer > 0) return;
+    // Evenings get a livelier strum; rain slows it to a drizzle of notes.
+    const density = 0.55 + progress * 0.9;
+    this.musicTimer = (raining ? 1.5 : 1) * (1.15 - density * 0.55) * (0.8 + Math.random() * 0.5);
+    const SCALE = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33];
+    // Random-walk the melody so it never repeats exactly.
+    this.musicDegree += [-2, -1, -1, 0, 1, 1, 2][Math.floor(Math.random() * 7)];
+    this.musicDegree = Math.max(0, Math.min(SCALE.length - 1, this.musicDegree));
+    const now = this.context.currentTime;
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = SCALE[this.musicDegree] * (Math.random() < 0.12 ? 2 : 1);
+    const vol = 0.02 + progress * 0.02;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(vol, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+    osc.connect(gain).connect(this.musicGain);
+    osc.start(now);
+    osc.stop(now + 0.55);
+    // Occasional low drone note for warmth.
+    if (Math.random() < 0.18) {
+      const drone = this.context.createOscillator();
+      const dg = this.context.createGain();
+      drone.type = 'sine';
+      drone.frequency.value = SCALE[0] / 2;
+      dg.gain.setValueAtTime(0.0001, now);
+      dg.gain.exponentialRampToValueAtTime(0.012, now + 0.4);
+      dg.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
+      drone.connect(dg).connect(this.musicGain);
+      drone.start(now);
+      drone.stop(now + 2.3);
+    }
   }
 
   footstep(running = false): void {
