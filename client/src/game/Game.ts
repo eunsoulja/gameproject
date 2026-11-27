@@ -115,6 +115,7 @@ export class Game {
   private fpsEl: HTMLElement | null = null;
   private fpsTimer = 0;
   private fpsFrames = 0;
+  private recentToasts = new Map<string, number>();
   private onboarded = false;
   private muted = false;
   private earnedBadges = new Set<string>();
@@ -254,6 +255,11 @@ export class Game {
       onPlayerJoined: (player) => this.remotePlayers.upsert(player),
       onPlayerLeft: (id) => this.remotePlayers.remove(id),
       onNotification: (payload) => {
+        // Dedupe: identical titles within 12s collapse into one toast.
+        const key = payload.title.toLowerCase();
+        const last = this.recentToasts.get(key) ?? 0;
+        if (this.elapsed - last < 12) return;
+        this.recentToasts.set(key, this.elapsed);
         this.notifications?.show(payload);
         // Milestone toasts earn a camera punch; the biggest ones get confetti.
         if (payload.kind === 'success' && /quest|guide|upgrade|stall is open|deal struck/i.test(payload.title)) {
