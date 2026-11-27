@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DISTRICTS, WORLD, zoneCategoryAt } from '../../../shared/layout';
+import { DISTRICTS, WORLD, districtAt, zoneCategoryAt } from '../../../shared/layout';
 import type { StallCategory } from '../../../shared/config';
 import type { CollisionSystem } from './CollisionSystem';
 import {
@@ -87,6 +87,7 @@ export class MarketGenerator {
     this.buildTianggeAlley();
     this.buildPlaza();
     this.buildDistrictSigns();
+    this.buildZoneAccents();
     this.buildJeepneys();
     this.buildCarts();
     this.buildStreetClutter();
@@ -148,7 +149,9 @@ export class MarketGenerator {
               label: this.rng() > 0.7 ? pick(this.rng, STALL_LABELS) : undefined,
             });
           }
-          z += width + range(this.rng, 0.35, 1.3);
+          // Busy districts pack stalls tighter; quiet alleys breathe.
+          const gap = range(this.rng, 0.35, 1.3) * (1.5 - districtAt(z).crowd * 0.9);
+          z += width + gap;
         }
       }
     }
@@ -245,6 +248,37 @@ export class MarketGenerator {
       const boardBack = board.clone();
       boardBack.rotation.y = Math.PI;
       this.signMeshes.push(boardBack);
+    }
+  }
+
+  /** One signature set-piece per district so each zone has a landmark. */
+  private buildZoneAccents(): void {
+    for (const zone of DISTRICTS) {
+      const z = (zone.zMin + zone.zMax) / 2;
+      if (zone.id === 'ukay') {
+        // Mini shrine gate at the alley mouth.
+        for (const side of [-1, 1] as Array<-1 | 1>) {
+          this.structural.push(cylinder(0.12, 0.14, 3.6, 6, '#8a2f2f', { x: side * 6.8, y: 1.8, z: zone.zMax - 3 }));
+        }
+        this.structural.push(box(14.4, 0.3, 0.3, '#8a2f2f', { x: 0, y: 3.7, z: zone.zMax - 3 }));
+        this.glow.push(sphere(0.22, '#ffd76a', { x: 0, y: 3.2, z: zone.zMax - 3 }, 7));
+      } else if (zone.id === 'food') {
+        // Basketball court painted on the side street edge.
+        this.structural.push(box(0.05, 0.02, 16, '#e8e0cc', { x: 12.5, y: 0.02, z }));
+        this.structural.push(box(6, 0.02, 0.05, '#e8e0cc', { x: 12.5, y: 0.02, z }));
+        this.glow.push(cylinder(0.5, 0.5, 0.02, 12, '#d9534a', { x: 12.5, y: 0.03, z: z + 4 }));
+      } else if (zone.id === 'night') {
+        // Ferris-wheel silhouette on the north horizon.
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          this.glow.push(sphere(0.12, '#ff9d7a', {
+            x: -16 + Math.cos(a) * 2.2,
+            y: 3 + Math.sin(a) * 2.2,
+            z,
+          }, 5));
+        }
+        this.structural.push(cylinder(0.1, 0.14, 3.4, 6, '#3a3f4a', { x: -16, y: 1.7, z }));
+      }
     }
   }
 
