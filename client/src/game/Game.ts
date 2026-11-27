@@ -43,6 +43,7 @@ import { BuildingGenerator } from './BuildingGenerator';
 import { CollisionSystem } from './CollisionSystem';
 import { CrowdSystem } from './CrowdSystem';
 import { Environment } from './Environment';
+import { IntroCinematic } from './IntroCinematic';
 import { FloatingText } from './FloatingText';
 import { RainParticles } from './RainParticles';
 import { Input } from './Input';
@@ -106,6 +107,8 @@ export class Game {
   private lastEmoteSent: string | null = null;
   private lastServeAttempt = -10;
   private lastServeInFlight = false;
+  private intro: IntroCinematic | null = null;
+  private introPlayed = false;
   private onboarded = false;
   private muted = false;
   private earnedBadges = new Set<string>();
@@ -410,6 +413,18 @@ export class Game {
       this.cameraRig.yaw = this.player?.yaw ?? 0;
       this.cameraRig.pitch = 0.2;
       if (this.player) this.cameraRig.snap(this.player.position, this.collision);
+
+      // One-time join flyover — skipped for reduced-motion players and replays.
+      if (
+        this.player &&
+        !this.introPlayed &&
+        !this.settings.current.reduceMotion &&
+        !payload.token // fresh vendor gets the full reveal; returning sessions skip it
+      ) {
+        this.introPlayed = true;
+        this.intro = new IntroCinematic(this.player.position, this.player.yaw);
+        this.input.setEnabled(false);
+      }
 
       this.onboardingTimer = window.setTimeout(() => {
         try {
@@ -901,7 +916,7 @@ export class Game {
           this.audio.click();
         }
       }
-      const intent = blocked
+      const intent = blocked || this.intro
         ? { x: 0, y: 0, sprint: false, jump: false }
         : { x: this.input.movement.x, y: this.input.movement.y, sprint: this.input.sprint, jump };
       this.player!.update(dt, this.elapsed, intent, this.cameraRig.yaw, this.collision);
@@ -918,17 +933,30 @@ export class Game {
       } else {
         this.network.sendPosition(this.activeEmote ? { ...payload, emote: this.activeEmote } : payload);
       }
-      this.interaction.setActive(!blocked);
+      this.interaction.setActive(!blocked && !this.intro);
       this.interaction.update(this.player!.position);
       // Trigger after the target refresh so a profile tick can never swallow the E press.
-      if (!blocked && interact) this.interaction.trigger();
-      this.cameraRig.update(
-        dt,
-        this.player!.position,
-        this.collision,
-        this.player!.speed,
-        this.settings.current.reduceMotion,
-      );
+      if (!blocked && !this.intro && interact) this.interaction.trigger();
+
+      if (this.intro) {
+        const skip = this.input.consumeAnyInput();
+        const done = this.intro.update(dt, this.viewCamera) || skip;
+        if (done) {
+          this.intro = null;
+          this.input.setEnabled(!blocked);
+          this.cameraRig.yaw = this.player!.yaw;
+          this.cameraRig.pitch = 0.2;
+          this.cameraRig.snap(this.player!.position, this.collision);
+        }
+      } else {
+        this.cameraRig.update(
+          dt,
+          this.player!.position,
+          this.collision,
+          this.player!.speed,
+          this.settings.current.reduceMotion,
+        );
+      }
     } else {
       this.input.setEnabled(false);
       this.updateCinematicCamera();

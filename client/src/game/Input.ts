@@ -19,6 +19,7 @@ export class Input {
   private resetCameraQueued = false;
   private namesQueued = false;
   private emoteQueued: string | null = null;
+  private anyInputQueued = false;
   private mobileMoveX = 0;
   private mobileMoveY = 0;
   private mobileSprint = false;
@@ -81,6 +82,7 @@ export class Input {
       if (event.code === 'KeyF') this.fullscreenQueued = true;
       if (event.code === 'KeyR') this.resetCameraQueued = true;
       if (event.code === 'KeyN') this.namesQueued = true;
+      this.anyInputQueued = true;
     };
     const onKeyUp = (event: KeyboardEvent): void => {
       this.keys.delete(event.code);
@@ -102,6 +104,7 @@ export class Input {
       if (!this.enabled) return;
       if (event.button !== 0 && event.pointerType === 'mouse') return;
       this.dragging = true;
+      this.anyInputQueued = true;
       this.dragPointer = event.pointerId;
       this.dragLastX = event.clientX;
       this.dragLastY = event.clientY;
@@ -265,6 +268,13 @@ export class Input {
   consumeJump(): boolean {
     const value = this.jumpQueued;
     this.jumpQueued = false;
+    return value;
+  }
+
+  /** True once between calls if the player pressed a key or clicked — used to skip cinematics. */
+  consumeAnyInput(): boolean {
+    const value = this.anyInputQueued;
+    this.anyInputQueued = false;
     return value;
   }
 
