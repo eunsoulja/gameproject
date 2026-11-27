@@ -12,6 +12,7 @@ import {
   type UpgradeBranch,
 } from '../../../shared/config';
 import type { PlayerProfile } from '../../../shared/types';
+import { PLOT_SLOTS } from '../../../shared/layout';
 import { tutorialState } from '../../../shared/tutorial';
 import {
   clockLabel,
@@ -157,6 +158,8 @@ export class HUD {
 
       <div class="powerup-strip" data-ref="powerup-strip"></div>
 
+      <canvas id="minimap" width="120" height="170"></canvas>
+
       <div class="market-meta">
         <div class="online-chip"><span class="live-dot"></span><b data-ref="online">0</b>&nbsp;vendor<span data-ref="online-s">s</span> online</div>
         <button class="icon-btn" type="button" data-action="help" aria-label="Help and controls">${icon('help', 15)}</button>
@@ -264,6 +267,47 @@ export class HUD {
 
   setServerOffset(offset: number): void {
     this.serverOffset = offset;
+  }
+
+  /** Draw the street minimap: stall dots + player arrow. */
+  drawMinimap(x: number, z: number, yaw: number, ownIndex: number): void {
+    const canvas = this.root.querySelector<HTMLCanvasElement>('#minimap');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    // World z∈[-150,232], x∈[-16,16] → map with margin.
+    const sx = (wx: number) => ((wx + 18) / 36) * W;
+    const sz = (wz: number) => H - ((wz + 155) / 400) * H;
+    ctx.fillStyle = 'rgba(12,10,8,0.72)';
+    ctx.fillRect(0, 0, W, H);
+    // Street spine.
+    ctx.strokeStyle = 'rgba(255,220,160,0.35)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(sx(0), sz(-150));
+    ctx.lineTo(sx(0), sz(232));
+    ctx.stroke();
+    for (const slot of PLOT_SLOTS) {
+      const px = sx(slot.x), pz = sz(slot.z);
+      ctx.fillStyle = slot.index === ownIndex ? '#ffd98a' : 'rgba(200,190,170,0.5)';
+      ctx.beginPath();
+      ctx.arc(px, pz, slot.index === ownIndex ? 4 : 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Player arrow.
+    ctx.save();
+    ctx.translate(sx(x), sz(z));
+    ctx.rotate(-yaw);
+    ctx.fillStyle = '#7cd6ff';
+    ctx.beginPath();
+    ctx.moveTo(0, -6);
+    ctx.lineTo(4, 5);
+    ctx.lineTo(-4, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   /** Live shopper count near the player's stall — null hides the panel. */

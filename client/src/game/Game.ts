@@ -1506,6 +1506,10 @@ export class Game {
     if (this.trafficTimer <= 0) {
       this.trafficTimer = 0.6;
       this.hud.setTraffic(this.player ? this.crowd.trafficNearStall() : null);
+      if (this.player) {
+        const own = this.plots.find((p) => p.ownerId === this.profile?.id)?.index ?? 0;
+        this.hud.drawMinimap(this.player.position.x, this.player.position.z, this.player.yaw, own);
+      }
     }
     this.market.update(dt, this.elapsed);
     this.umbrellas.update(dt, this.elapsed);
