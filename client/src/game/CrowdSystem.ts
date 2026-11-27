@@ -76,6 +76,12 @@ const PLAYER_LINES = [
   'Salamat sa pag-join!', 'Uy, ang galing mo, angas!',
   'Hoy brader! Masarap dito, di ba?', 'Kumusta sa tindahan!',
 ];
+// Closing-time chatter in the final stretch of the night.
+const LAST_CALL_LINES = [
+  'Last call na! Kain pa tayo!', 'Sige na, bibilis na ang pila!',
+  'Bukas na ang barako, tara!', 'Huling order na, ha!',
+  'Sarap ng silog bago magsara!', 'Closing time na, ubos na!',
+];
 // What suki regulars say back to the player.
 const SUKI_LINES = [
   'Uy, suki na kita dito ah!', 'Kain na tayo, ang sarap ng silog!',
@@ -427,6 +433,10 @@ export class CrowdSystem {
         // Neighbors stop to gossip now and then — pairs face off and chat.
         // Umbrella buddies huddle up even more eagerly in the rain.
         const chatChance = this.rainy ? 0.2 : 0.12;
+        // Last-call mutterings drift through the crowd before close.
+        if (this.progress >= 0.88 && this.rng() < 0.07) {
+          customer.avatar.say(pick(this.rng, LAST_CALL_LINES), 2.4);
+        }
         if (this.rng() < chatChance && this.tryStartChat(customer)) {
           // handled inside tryStartChat
         } else {
@@ -617,11 +627,14 @@ export class CrowdSystem {
 
   private chooseTarget(customer: Customer): void {
     // Food stalls run a real queue — hungry shoppers line up at the counter.
-    // Suki regulars practically live at the karendero counter.
+    // Suki regulars practically live at the karendero counter. In the last
+    // stretch of the night everyone makes a final dash for a plate.
+    const lastCall = this.progress >= 0.88;
+    const queueChance = lastCall ? 0.8 : customer.suki ? 0.85 : 0.5;
     if (
       this.ownIsFood &&
       this.ownConfigured &&
-      this.rng() < (customer.suki ? 0.85 : 0.5) &&
+      this.rng() < queueChance &&
       this.tryJoinQueue(customer)
     ) {
       return;
