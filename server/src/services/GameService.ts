@@ -41,6 +41,7 @@ import {
   endDay,
   ensureQuest,
   effectiveSellingPrice,
+  firstNightBoost,
   makeAppearance,
   normalizeProfile,
   simulateSales,
@@ -394,7 +395,7 @@ export class GameService {
     this.notifyRecord(record, {
       kind: 'success',
       title: 'Your stall is open!',
-      message: 'Walk to the glowing purchase pads around your bay, or press E at the counter to manage stock and prices.',
+      message: 'First-night perk: +25% prices and a starter crate on the house. Walk to the glowing pads or press E at the counter to get going.',
     });
 
     return {
@@ -550,7 +551,7 @@ export class GameService {
     if (quantity <= 0) return { ok: false, error: 'That item just sold out.' };
 
     profile.inventory[product.id] -= quantity;
-    const unitPrice = effectiveSellingPrice(profile, product);
+    const unitPrice = Math.round(effectiveSellingPrice(profile, product) * firstNightBoost(profile));
     const revenue = unitPrice * quantity;
     const tip = Math.random() < 0.3 ? Math.round(unitPrice * quantity * (0.1 + Math.random() * 0.25)) : 0;
     const total = revenue + tip;

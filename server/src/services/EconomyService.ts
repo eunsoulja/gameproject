@@ -104,7 +104,8 @@ export function createNewProfile(input: {
   const appearance = input.appearance ?? makeAppearance(input.name.length / 17);
   const inventory: Record<string, number> = {};
   for (const product of PRODUCTS) {
-    inventory[product.id] = product.category === input.category ? 14 : 0;
+    // First-night guarantee: a generous starter crate so nobody opens empty-handed.
+    inventory[product.id] = product.category === input.category ? 26 : 0;
   }
   const prices: Record<string, number> = {};
   for (const product of PRODUCTS) prices[product.id] = product.price;
@@ -279,6 +280,11 @@ export function effectiveSellingPrice(profile: PlayerProfile, product: ProductDe
   return Math.max(1, Math.round((profile.prices[product.id] ?? product.price) * priceModifier(profile)));
 }
 
+/** First-night grace: vendors still on their opening night earn a warm-up bonus. */
+export function firstNightBoost(profile: PlayerProfile): number {
+  return profile.lifetime.daysPlayed === 0 ? 1.25 : 1;
+}
+
 export function activePowerUp(profile: PlayerProfile, id: string, now: number): boolean {
   return profile.powerUps.some((p) => {
     if (p.id !== id) return false;
@@ -438,6 +444,7 @@ export function simulateSales(
         const product = pick(weighted);
         profile.inventory[product.id] -= 1;
         let unitPrice = effectiveSellingPrice(profile, product);
+        unitPrice = Math.round(unitPrice * firstNightBoost(profile));
         if (!activePowerUp(profile, 'tawadShield', now)) {
           unitPrice = Math.round(unitPrice * (1 - category.haggle));
         }
@@ -466,7 +473,7 @@ export function simulateSales(
       0,
       100,
     );
-    recordSukiVisit(profile, now, notices);
+    recordSukiVisit(profile, now, notices, profile.lifetime.daysPlayed === 0 && profile.suki.length === 0);
   }
 
   updateQuestProgress(profile, result.sold, result.revenue, result.customers, notices);
@@ -488,9 +495,9 @@ export function simulateSales(
  * Regulars (suki) remember a fair price. Now and then one stops by, bumps
  * your reputation a touch, and gets a line in the market chatter.
  */
-function recordSukiVisit(profile: PlayerProfile, now: number, notices: EconomyNotice[]): void {
-  if (now - (profile.lastSukiNoticeAt ?? 0) < 40_000) return;
-  if (Math.random() > 0.4) return;
+function recordSukiVisit(profile: PlayerProfile, now: number, notices: EconomyNotice[], force = false): void {
+  if (!force && now - (profile.lastSukiNoticeAt ?? 0) < 40_000) return;
+  if (!force && Math.random() > 0.4) return;
   profile.lastSukiNoticeAt = now;
 
   const unlockedProducts = PRODUCTS.filter((p) => profile.unlockedCategories.includes(p.category));
