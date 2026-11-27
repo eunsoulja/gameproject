@@ -398,6 +398,8 @@ export function simulateSales(
     difficultyTraffic(profile) *
     (rush ? 1.45 : 1) *
     (profile.dailyChallenge?.id === 'earlyBird' && profile.dayProgress < 0.5 ? 1.3 : 1) *
+    // Fiesta week crowds are thicker; parol season is slower but richer.
+    (profile.day % 9 >= 7 ? 1.2 : profile.day % 36 < 3 ? 0.9 : 1) *
     rand(0.72, 1.28);
 
   let serviceLeft = serviceCapacity(profile, now);

@@ -1099,6 +1099,10 @@ export class Game {
     this.jeepneys?.update(dt);
 
     const focus = hasProfile && this.joined && this.player ? this.player.position : this.cinematicFocus;
+    // Seasonal calendar: fiesta week (days 7-8 of each 9) and parol season
+    // (first 3 days of each 36) turn the lamps red and green.
+    const day = this.profile?.day ?? 1;
+    this.environment?.setFestive(day % 9 >= 7 || day % 36 < 3);
     this.environment.update(dt, progress, focus, visual);
 
     this.atmosphereTimer -= dt;

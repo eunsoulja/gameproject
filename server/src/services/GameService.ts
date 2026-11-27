@@ -1150,8 +1150,18 @@ export class GameService {
         profile.dailyChallenge = { ...dailyChallengeFor(this.clock.day) };
         this.notifyRecord(record, {
           kind: 'event',
-          title: `Tonight's challenge: ${profile.dailyChallenge.label}`,
-          message: profile.dailyChallenge.desc,
+          title:
+            this.clock.day % 9 >= 7
+              ? "Tonight's challenge: Fiesta week!"
+              : this.clock.day % 36 < 3
+                ? "Tonight's challenge: Parol season"
+                : `Tonight's challenge: ${profile.dailyChallenge.label}`,
+          message:
+            (this.clock.day % 9 >= 7
+              ? 'Fiesta crowds — traffic is up 20% tonight. '
+              : this.clock.day % 36 < 3
+                ? 'Parol season — traffic dips but margins hold. '
+                : '') + profile.dailyChallenge.desc,
         });
       }
       try {

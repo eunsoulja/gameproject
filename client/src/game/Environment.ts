@@ -62,6 +62,11 @@ export class Environment {
   /** Parol lights go up in December. */
   private festive = new Date().getMonth() === 11;
 
+  /** Market-calendar seasons (fiesta week / parol season) drive the lamp colors. */
+  setFestive(on: boolean): void {
+    this.festive = on;
+  }
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.scene.background = new THREE.Color('#04070e');
