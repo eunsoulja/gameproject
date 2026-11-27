@@ -21,6 +21,7 @@ import {
 } from '../../../shared/config';
 import { plotSlot, spawnForPlot } from '../../../shared/layout';
 import {
+  KARENDERO_DRINKS,
   KARENDERO_DISHES,
   KARENDERO_MAX_ORDERS,
   KARENDERO_ORDER_TTL_MS,
@@ -830,20 +831,28 @@ export class GameService {
       return { ok: false, error: 'The counter is swamped — serve someone first.' };
     }
     const dish = KARENDERO_DISHES[Math.floor(Math.random() * KARENDERO_DISHES.length)];
-    let price = Math.round(dish.price * firstNightBoost(profile));
-    if (profile.dailyChallenge?.id === 'premiumNight') price = Math.round(price * 1.15);
+    // Some customers add a drink — it cooks on the same ticket.
+    const drink = Math.random() < 0.35
+      ? KARENDERO_DRINKS[Math.floor(Math.random() * KARENDERO_DRINKS.length)]
+      : null;
+    const boost = firstNightBoost(profile) * (profile.dailyChallenge?.id === 'premiumNight' ? 1.15 : 1);
+    const price = Math.round(dish.price * boost) + (drink ? Math.round(drink.price * boost) : 0);
+    const cookMs = Math.max(dish.cookMs, drink?.cookMs ?? 0);
     const order: KarenderoOrderInfo & { served?: boolean } = {
       dishId: dish.id,
       dishName: dish.name,
       price,
-      readyAt: now + dish.cookMs,
-      expiresAt: now + dish.cookMs + KARENDERO_ORDER_TTL_MS,
+      drinkId: drink?.id,
+      drinkName: drink?.name,
+      drinkPrice: drink ? Math.round(drink.price * boost) : undefined,
+      readyAt: now + cookMs,
+      expiresAt: now + cookMs + KARENDERO_ORDER_TTL_MS,
       picked: false,
     };
     orders.push(order);
     this.karenderoOrders.set(profile.id, orders);
     this.lastOrderAt.set(profile.id, now);
-    return { ok: true, data: { ...order, balance: profile.balance, readyInMs: dish.cookMs } };
+    return { ok: true, data: { ...order, balance: profile.balance, readyInMs: cookMs } };
   }
 
   /** Pick up a finished plate — marks the order held by the player. */
@@ -878,6 +887,7 @@ export class GameService {
       data: {
         dishId: ready.dishId,
         dishName: ready.dishName,
+        drinkName: ready.drinkName,
         price: ready.price,
         nextInSec: next ? Math.max(0, Math.ceil((next.readyAt - now) / 1000)) : 0,
       },
@@ -925,7 +935,7 @@ export class GameService {
       'sale',
       total,
       profile.balance,
-      `${order.dishName} (karendero)`,
+      `${order.dishName}${order.drinkName ? ` + ${order.drinkName}` : ''} (karendero)`,
     );
     // Some customers ask for extra rice right after being served.
     const upsell = Math.random() < 0.45;
@@ -937,7 +947,7 @@ export class GameService {
       ok: true,
       data: {
         productId: order.dishId,
-        productName: order.dishName,
+        productName: order.drinkName ? `${order.dishName} + ${order.drinkName}` : order.dishName,
         quantity: 1,
         revenue: order.price,
         tip,

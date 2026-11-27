@@ -21,6 +21,20 @@ export const KARENDERO_DISHES: KarenderoDish[] = [
   { id: 'daing', name: 'Daing na Bangus', price: 100, cookMs: 12000 },
 ];
 
+export interface KarenderoDrink {
+  id: string;
+  name: string;
+  price: number;
+  cookMs: number;
+}
+
+/** Drinks that ride along with a plate when a customer orders both. */
+export const KARENDERO_DRINKS: KarenderoDrink[] = [
+  { id: 'kape', name: 'Kape Barako', price: 25, cookMs: 4000 },
+  { id: 'soda', name: 'Softdrinks', price: 20, cookMs: 3000 },
+  { id: 'buko', name: 'Buko Juice', price: 30, cookMs: 6000 },
+];
+
 export const KARENDERO_MAX_ORDERS = 3;
 /** An order stays claimable this long after it is ready. */
 export const KARENDERO_ORDER_TTL_MS = 75_000;
@@ -33,6 +47,10 @@ export interface KarenderoOrderInfo {
   dishId: string;
   dishName: string;
   price: number;
+  /** Set when the customer also ordered a drink — rides on the same plate. */
+  drinkId?: string;
+  drinkName?: string;
+  drinkPrice?: number;
   /** Epoch ms when the plate is ready to pick up. */
   readyAt: number;
   /** Epoch ms when the order goes cold. */
@@ -51,6 +69,7 @@ export interface KarenderoOrderReceipt extends KarenderoOrderInfo {
 export interface KarenderoPickup {
   dishId: string;
   dishName: string;
+  drinkName?: string;
   price: number;
   /** Seconds left on the next still-cooking order, or 0. */
   nextInSec: number;

@@ -1001,10 +1001,13 @@ export class Game {
       }
       const o = res.data;
       const now = Date.now();
-      this.crowd.startOrderFlow(front, o.dishId, o.dishName);
+      const label = o.drinkName ? `${o.dishName} + ${o.drinkName}` : o.dishName;
+      this.crowd.startOrderFlow(front, o.dishId, label);
       this.karenOrders.push({
         dishId: o.dishId,
         dishName: o.dishName,
+        drinkName: o.drinkName,
+        drinkPrice: o.drinkPrice,
         price: o.price,
         readyAt: now + o.readyInMs,
         expiresAt: now + o.readyInMs + KARENDERO_ORDER_TTL_MS,
@@ -1013,7 +1016,7 @@ export class Game {
       const at = this.player?.position.clone();
       if (at) {
         at.y += 2.4;
-        this.floatingText.spawn(at, `Order: ${o.dishName}`, 'info');
+        this.floatingText.spawn(at, `Order: ${label}`, 'info');
       }
       this.audio.click();
     });
@@ -1031,13 +1034,20 @@ export class Game {
         return;
       }
       const d = res.data;
-      this.heldDish = { dishId: d.dishId, dishName: d.dishName };
+      this.heldDish = {
+        dishId: d.dishId,
+        dishName: d.drinkName ? `${d.dishName} + ${d.drinkName}` : d.dishName,
+      };
       const order = this.karenOrders.find((o) => !o.picked && o.dishId === d.dishId);
       if (order) order.picked = true;
       const at = this.player?.position.clone();
       if (at) {
         at.y += 2.4;
-        this.floatingText.spawn(at, `Picked up ${d.dishName} — serve it hot!`, 'info');
+        this.floatingText.spawn(
+          at,
+          `Picked up ${d.drinkName ? `${d.dishName} + ${d.drinkName}` : d.dishName} — serve it hot!`,
+          'info',
+        );
       }
       this.audio.click();
     });
