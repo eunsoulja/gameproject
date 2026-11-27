@@ -249,6 +249,20 @@ export class ShopMenu {
     const canBuy = room > 0 && affordableUnits > 0;
     const quick = [1, 5, 10].filter((quantity) => quantity <= affordableUnits && quantity <= room);
     const maxQuantity = Math.min(room, affordableUnits, 200);
+    const demand = STALL_CATEGORIES.find((c) => c.id === product.category)?.baseDemand ?? 1;
+    const ratio = setPrice / Math.max(1, product.price);
+    const hint =
+      demand >= 1.2 && ratio <= 1.05
+        ? 'Hot demand — premium pricing still flies'
+        : demand >= 1.2
+          ? 'Hot demand — but your price is scaring people off'
+          : demand <= 0.85 && ratio >= 1
+            ? 'Soft demand — undercut to move stock'
+            : demand <= 0.85
+              ? 'Soft demand — your price is already competitive'
+              : ratio >= 1.15
+                ? 'Premium price — expect thinner traffic'
+                : 'Balanced — close to market guide';
     return `
       <div class="product-row">
         <div class="product-name">
@@ -274,6 +288,7 @@ export class ShopMenu {
               <button type="button" data-price-dir="1" data-price-product="${product.id}" aria-label="Raise price">+</button>
             </div>
             <span class="price-warn">${effective !== setPrice ? `${peso(effective)} after perks` : `target ${peso(product.price)}`}</span>
+            <span class="price-hint">${escapeHtml(hint)}</span>
             <div class="price-presets">
               <button type="button" data-price-preset="0.85" data-price-product="${product.id}" title="Undercut the guide by 15%">−15%</button>
               <button type="button" data-price-preset="1" data-price-product="${product.id}" title="Match the guide price">Guide</button>
