@@ -209,6 +209,12 @@ export class CrowdAvatar {
     const storm = this.storm;
     const idle = speed <= 0.08 ? 1 : 0;
     const browse = Math.min(1, this.lean / 0.12);
+    // Slow fidget cycle — every ~9s a shopper checks their watch, scrolls
+    // their phone or does a little stretch. Desynced per avatar via phase.
+    const cycle = (elapsed * 0.11 + this.phase * 0.37) % 1;
+    const checkingWatch = cycle > 0.7 && cycle < 0.78;
+    const onPhone = cycle > 0.8 && cycle < 0.92;
+    const stretching = idle > 0.5 && cycle > 0.93;
 
     if (speed > 0.08) {
       // Faster feet in a storm — hurried shuffle, deeper bob.
@@ -240,8 +246,17 @@ export class CrowdAvatar {
         Math.sin(elapsed * 1.3 + this.phase) * (0.006 + storm * 0.002) - this.sit * 0.55;
       this.mesh.position.x = Math.sin(elapsed * 0.9 + this.phase * 1.7) * 0.016;
       this.mesh.rotation.z += (0 - this.mesh.rotation.z) * Math.min(1, dt * 4);
-      this.mesh.rotation.x += (this.lean + storm * 0.14 + this.sit * 0.1 - this.mesh.rotation.x) * Math.min(1, dt * 4);
+      this.mesh.rotation.x +=
+        (this.lean + storm * 0.14 + this.sit * 0.1 + (onPhone ? 0.34 : 0) - this.mesh.rotation.x) *
+        Math.min(1, dt * 4);
       this.mesh.rotation.y = Math.sin(elapsed * 0.45 + this.phase) * 0.3 * idle;
+      if (checkingWatch) {
+        // Sharp little glance at the wrist — quick dart, not a smooth turn.
+        this.mesh.rotation.y += Math.sin(elapsed * 16 + this.phase) * 0.22;
+      } else if (onPhone) {
+        // Thumb-work hunch — head dips, shoulders round a touch.
+        this.mesh.position.z += 0.02;
+      }
       this.turnRate *= Math.max(0, 1 - dt * 6);
     }
     // Browsers reach toward the goods — a small forward pulse on top of the lean.
@@ -263,8 +278,8 @@ export class CrowdAvatar {
         this.bubble.visible = false;
       }
     }
-    // Storm crouch — shoppers hunch low against the wind.
-    const crouch = 1 - storm * 0.16;
+    // Storm crouch — shoppers hunch low against the wind. Idle stretch rises tall.
+    const crouch = (1 - storm * 0.16) * (stretching ? 1.045 : 1);
     this.mesh.scale.y += (crouch - this.mesh.scale.y) * Math.min(1, dt * 3);
     // Umbrella leans into the gusts.
     if (this.umbrellaGroup.visible) {
