@@ -518,6 +518,19 @@ export class PlotManager {
     ring.position.set(center.x, 0.108, center.z);
     base.group.add(ring);
 
+    // Radar-sweep ring spinning around the pad edge.
+    const spinner = new THREE.Group();
+    spinner.position.set(center.x, 0.115, center.z);
+    const sweep = new THREE.Mesh(
+      new THREE.RingGeometry(0.88, 0.97, 28, 1, 0, Math.PI * 1.55),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, toneMapped: false }),
+    );
+    sweep.rotation.x = -Math.PI / 2;
+    spinner.add(sweep);
+    base.group.add(spinner);
+    const spinners = (base.group.userData.padSpinners ??= []) as THREE.Group[];
+    spinners.push(spinner);
+
     // Branch name laid flat on the pad.
     const labelTexture = makeLabelTexture(def.name, '#fff3d8', 'rgba(12,15,20,0)');
     const labelMat = new THREE.MeshBasicMaterial({ map: labelTexture, transparent: true, toneMapped: false, depthWrite: false });
@@ -539,6 +552,45 @@ export class PlotManager {
       y: 0.11,
       z: center.z - base.inward * 0.55,
     }));
+
+    // Floating branch chip — the pad's name readable from across the market.
+    const chip = this.makePadChip(def.name, color);
+    chip.position.set(center.x, 1.55, center.z);
+    base.group.add(chip);
+    const padIcons = (base.group.userData.padIcons ??= []) as Array<{ sprite: THREE.Sprite; phase: number }>;
+    padIcons.push({ sprite: chip, phase: this.rng() * Math.PI * 2 });
+  }
+
+  private makePadChip(name: string, color: string): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createLinearGradient(0, 0, 0, 96);
+    grad.addColorStop(0, '#fff8e4');
+    grad.addColorStop(1, '#f0d9a8');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(6, 6, 244, 84, 26);
+    ctx.fill();
+    ctx.strokeStyle = '#1c1008';
+    ctx.lineWidth = 8;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.fillRect(28, 74, 200, 8);
+    ctx.fillStyle = '#1c1008';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '44px "Lilita One", "Arial Black", sans-serif';
+    ctx.fillText(name.toUpperCase(), 128, 44);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }),
+    );
+    sprite.scale.set(1.7, 0.64, 1);
+    sprite.renderOrder = 3;
+    return sprite;
   }
 
   private addCategoryGoods(base: StallBase, category: StallCategory, z: number, x: number, y: number): void {
@@ -1004,11 +1056,19 @@ export class PlotManager {
         view.light.intensity = 4.0 + Math.sin(elapsed * 3.1) * 0.28;
       }
     }
-    // Pads gently pulse their glow.
+    // Pads gently pulse their glow; radar rings sweep and chips bob.
     for (const view of this.views) {
       for (let i = 0; i < view.padGlow.length; i++) {
         const material = view.padGlow[i].material as THREE.MeshBasicMaterial;
         if (material) material.opacity = 0.68 + 0.22 * Math.sin(elapsed * 2.4 + i * 1.4);
+      }
+      const spinners = view.group?.userData.padSpinners as THREE.Group[] | undefined;
+      if (spinners) for (const spinner of spinners) spinner.rotation.y += dt * 1.4;
+      const padIcons = view.group?.userData.padIcons as Array<{ sprite: THREE.Sprite; phase: number }> | undefined;
+      if (padIcons) {
+        for (const entry of padIcons) {
+          entry.sprite.position.y = 1.55 + Math.sin(elapsed * 1.8 + entry.phase) * 0.09;
+        }
       }
     }
     // Stock board pops when a sale lands.
