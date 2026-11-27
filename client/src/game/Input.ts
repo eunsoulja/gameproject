@@ -30,6 +30,8 @@ export class Input {
   private joystickPointer = -1;
   private joystickCenter = { x: 0, y: 0 };
   private joystickRadius = 54;
+  private pad: Gamepad | null = null;
+  private padButtons: boolean[] = [];
   private enabled = true;
   private joystickKnob: HTMLElement | null;
   private joystickZone: HTMLElement | null;
@@ -247,7 +249,38 @@ export class Input {
     if (this.joystickKnob) this.joystickKnob.style.transform = 'translate(0px, 0px)';
   }
 
+  /** Poll the first connected gamepad; edges queue the same actions as keys. */
+  private pollGamepad(): void {
+    const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
+    this.pad = null;
+    for (const candidate of pads) {
+      if (candidate && candidate.connected) {
+        this.pad = candidate;
+        break;
+      }
+    }
+    if (!this.pad) {
+      this.padButtons = [];
+      return;
+    }
+    const pressed = this.pad.buttons.map((b) => b.pressed || b.value > 0.5);
+    // Edge-triggered actions.
+    const edge = (index: number): boolean => pressed[index] === true && this.padButtons[index] !== true;
+    if (edge(0)) this.jumpQueued = true; // A / Cross
+    if (edge(2)) this.interactQueued = true; // X / Square
+    if (edge(3)) this.helpQueued = true; // Y / Triangle
+    if (edge(9)) this.menuKey = 'stats'; // Start
+    this.padButtons = pressed;
+  }
+
+  private axis(index: number, deadzone = 0.18): number {
+    if (!this.pad) return 0;
+    const value = this.pad.axes[index] ?? 0;
+    return Math.abs(value) < deadzone ? 0 : value;
+  }
+
   get movement(): { x: number; y: number } {
+    this.pollGamepad();
     let x = 0;
     let y = 0;
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) x -= 1;
@@ -258,11 +291,29 @@ export class Input {
       x = this.mobileMoveX;
       y = this.mobileMoveY;
     }
+    if (this.pad) {
+      const gx = this.axis(0);
+      const gy = this.axis(1);
+      // D-pad fallback.
+      const bx = (this.padButtons[15] ? 1 : 0) - (this.padButtons[14] ? 1 : 0);
+      const by = (this.padButtons[12] ? 1 : 0) - (this.padButtons[13] ? 1 : 0);
+      const padX = gx !== 0 ? gx : bx;
+      const padY = gy !== 0 ? -gy : by;
+      if (Math.abs(padX) > 0.01 || Math.abs(padY) > 0.01) {
+        x = padX;
+        y = padY;
+      }
+      // Right stick look.
+      this.lookX += this.axis(2, 0.12) * 14;
+      this.lookY += this.axis(3, 0.12) * 10;
+    }
     return { x, y };
   }
 
   get sprint(): boolean {
-    return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || this.mobileSprint;
+    if (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || this.mobileSprint) return true;
+    // Left trigger (LT) or left stick click (L3).
+    return !!this.pad && ((this.pad.buttons[6]?.value ?? 0) > 0.4 || !!this.pad.buttons[10]?.pressed);
   }
 
   consumeJump(): boolean {
@@ -327,6 +378,7 @@ export class Input {
   }
 
   consumeLook(): LookDelta {
+    this.pollGamepad();
     const delta = { dx: this.lookX, dy: this.lookY };
     this.lookX = 0;
     this.lookY = 0;
