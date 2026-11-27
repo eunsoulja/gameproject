@@ -196,7 +196,7 @@ export class LoginScreen {
       return;
     }
     const save = info.persistence === 'mongodb' ? 'MongoDB save' : 'local save';
-    text.textContent = `${info.online} vendor${info.online === 1 ? '' : 's'} online · ${save}`;
+    text.textContent = `Market open · ${info.online} vendor${info.online === 1 ? '' : 's'} online · ${save}`;
   }
 
   show(): void {
@@ -205,6 +205,8 @@ export class LoginScreen {
   }
 
   hide(): void {
-    this.el.classList.add('hidden');
+    if (this.el.classList.contains('hidden')) return;
+    this.el.classList.add('leaving');
+    window.setTimeout(() => this.el.classList.add('hidden'), 600);
   }
 }

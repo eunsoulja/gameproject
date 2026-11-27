@@ -688,3 +688,80 @@ input::placeholder { color: #7d6a4c; }
   background: rgba(255, 243, 214, 0.06);
   border-radius: 999px;
 }
+
+/* ── Boot parol + staggered reveal ────────────────────────────────────────── */
+
+.boot-parol {
+  position: absolute;
+  top: -58px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.boot-parol i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-left: 26px solid transparent;
+  border-right: 26px solid transparent;
+  border-bottom: 34px solid #f0a43c;
+  transform-origin: 50% 0;
+  transform: rotate(var(--r, 0deg)) translateY(6px);
+  filter: drop-shadow(0 6px 10px rgba(240, 164, 60, 0.35));
+  animation: parolSpin 9s ease-in-out infinite;
+}
+.boot-parol i:nth-child(1) { --r: 0deg; border-bottom-color: #d94b3d; }
+.boot-parol i:nth-child(2) { --r: 72deg; border-bottom-color: #f0c14c; animation-delay: -1.8s; }
+.boot-parol i:nth-child(3) { --r: 144deg; border-bottom-color: #57c9a1; animation-delay: -3.6s; }
+.boot-parol i:nth-child(4) { --r: 216deg; border-bottom-color: #5aa7e8; animation-delay: -5.4s; }
+.boot-parol i:nth-child(5) { --r: 288deg; border-bottom-color: #d886d1; animation-delay: -7.2s; }
+.boot-parol::after {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: -8px;
+  width: 6px;
+  height: 10px;
+  background: #f0c14c;
+  border-radius: 3px;
+}
+@keyframes parolSpin {
+  from { transform: rotate(var(--r, 0deg)) translateY(6px) rotate(-8deg); }
+  50% { transform: rotate(var(--r, 0deg)) translateY(6px) rotate(8deg); }
+  to { transform: rotate(var(--r, 0deg)) translateY(6px) rotate(-8deg); }
+}
+/* Per-ray sway needs individual angles — handled via nth-child transforms above
+   combined with a gentle whole-pin sway. */
+.boot-parol { animation: parolSway 5s ease-in-out infinite; }
+@keyframes parolSway {
+  0%, 100% { transform: translateX(-50%) rotate(-4deg); }
+  50% { transform: translateX(-50%) rotate(4deg); }
+}
+
+.boot-title {
+  animation: bootTitlePop 0.9s cubic-bezier(0.2, 1.4, 0.3, 1) 0.15s both;
+}
+@keyframes bootTitlePop {
+  from { opacity: 0; transform: scale(0.86) translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.boot-status, .boot-track, .boot-tip {
+  animation: bootFadeUp 0.7s ease 0.55s both;
+}
+@keyframes bootFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Smooth world reveal when the login card fades out */
+#login-screen {
+  transition: opacity 0.55s ease;
+}
+#login-screen.leaving {
+  opacity: 0;
+  pointer-events: none;
+}
