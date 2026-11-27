@@ -116,6 +116,7 @@ export class CrowdSystem {
   private scene: THREE.Scene;
   private rng: Random = makeRng(77123);
   private customers: Customer[] = [];
+  private frame = 0;
   private maxCount = 44;
   private targetCount = 26;
   private quality: QualitySetting = 'high';
@@ -286,6 +287,7 @@ export class CrowdSystem {
     }
     this.playerEmoting = playerEmoting;
     this.applyDensity();
+    this.frame = (this.frame + 1) | 0;
     const vendorCount = Math.min(this.vendorSpots.length, this.customers.length);
     let active = 0;
     for (let i = 0; i < this.customers.length; i++) {
@@ -301,7 +303,17 @@ export class CrowdSystem {
       }
       if (!customer.active) continue;
       active++;
-      this.updateCustomer(customer, dt, elapsed);
+      // Distance LOD — shoppers past ~55u tick every other frame with doubled dt.
+      let cdt = dt;
+      if (this.hasPlayer) {
+        const dx = customer.x - this.playerX;
+        const dz = customer.z - this.playerZ;
+        if (dx * dx + dz * dz > 3025) {
+          if ((this.frame + i) % 2 === 0) continue;
+          cdt = dt * 2;
+        }
+      }
+      this.updateCustomer(customer, cdt, elapsed);
     }
     this.separateCustomers(dt);
     this.reactToPlayer(dt, elapsed);
