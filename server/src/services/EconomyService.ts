@@ -154,6 +154,9 @@ export function createNewProfile(input: {
     tutorialStep: 0,
     dailyChallenge: null,
     challengeDay: 0,
+    streak: 0,
+    lastPlayedDay: 0,
+    chestDay: 0,
     difficulty: 'standard',
     updatedAt: Date.now(),
     online: false,
@@ -195,6 +198,9 @@ export function normalizeProfile(input: PlayerProfile): PlayerProfile {
       ? profile.dailyChallenge
       : null;
   profile.challengeDay = Math.max(0, Math.floor(profile.challengeDay || 0));
+  profile.streak = Math.max(0, Math.floor(profile.streak || 0));
+  profile.lastPlayedDay = Math.max(0, Math.floor(profile.lastPlayedDay || 0));
+  profile.chestDay = Math.max(0, Math.floor(profile.chestDay || 0));
   profile.difficulty =
     profile.difficulty === 'chill' || profile.difficulty === 'hustle' ? profile.difficulty : 'standard';
   profile.updatedAt = profile.updatedAt || Date.now();

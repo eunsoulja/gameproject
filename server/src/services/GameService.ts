@@ -377,6 +377,28 @@ export class GameService {
         title: `Welcome back, ${record.profile.name}`,
         message: `Day ${this.clock.day} · ${dateForDay(this.clock.day)}. Lifetime ₱${record.profile.lifetime.totalEarnings.toLocaleString('en-PH')} · ${record.profile.suki.length} sukis · stall at ${STALL_CATEGORIES[record.profile.unlockedCategories[0]].shortName} row.`,
       });
+      // Retention loop: consecutive-day streak, a daily login chest, and a
+      // comeback package after two or more days away.
+      const p = record.profile;
+      const gap = this.clock.day - p.lastPlayedDay;
+      p.streak = gap === 1 ? p.streak + 1 : gap <= 1 ? Math.max(1, p.streak) : 1;
+      p.lastPlayedDay = this.clock.day;
+      let chestNote = '';
+      if (p.chestDay !== this.clock.day) {
+        p.chestDay = this.clock.day;
+        const chest = 150 + Math.min(850, p.streak * 60) + (gap > 2 ? Math.min(1200, gap * 200) : 0);
+        p.balance += chest;
+        chestNote = ` Daily chest +₱${chest}.`;
+        if (gap > 2) chestNote += ` Welcome back after ${gap} days — comeback bonus included.`;
+      }
+      if (p.streak >= 3) chestNote += ` 🔥 ${p.streak}-day streak!`;
+      if (chestNote) {
+        this.notifyRecord(record, {
+          kind: 'success',
+          title: p.streak >= 3 ? `${p.streak}-day streak!` : 'Daily chest',
+          message: chestNote.trim(),
+        });
+      }
       void this.saveService.save(this.serializeRecord(record)!);
       return {
         ok: true,

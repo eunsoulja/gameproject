@@ -123,6 +123,9 @@ export interface PlayerProfile {
   tutorialStep: number;
   dailyChallenge: { id: string; label: string; desc: string } | null;
   challengeDay: number;
+  streak: number;
+  lastPlayedDay: number;
+  chestDay: number;
   difficulty: 'chill' | 'standard' | 'hustle';
   updatedAt: number;
   online: boolean;
