@@ -22,6 +22,8 @@ export class CrowdAvatar {
   private bubbleTex: THREE.CanvasTexture | null = null;
   private bubbleLife = 0;
   private cheer = 0;
+  private prevYaw = 0;
+  private turnRate = 0;
 
   constructor(appearance: Appearance, scale = 1) {
     const parts: THREE.BufferGeometry[] = [];
@@ -205,10 +207,22 @@ export class CrowdAvatar {
       const hurry = 1 + storm * 0.55;
       this.phase += dt * (4.8 + Math.min(3, speed * 1.5)) * hurry;
       const bobAmp = 0.035 + storm * 0.02;
-      this.mesh.position.y = Math.abs(Math.sin(this.phase)) * bobAmp;
-      // Body roll into the stride plus a speed-scaled forward hunch.
-      this.mesh.rotation.z = Math.sin(this.phase) * (0.022 + storm * 0.012);
-      this.mesh.rotation.x = 0.03 + Math.min(0.05, speed * 0.022) + storm * 0.12 + this.lean;
+      // Heel-strike shape — sharper contact, softer push-off.
+      this.mesh.position.y = Math.pow(Math.abs(Math.sin(this.phase)), 0.85) * bobAmp;
+      // Body roll into the stride, banking into turns, plus speed hunch.
+      const yaw = this.root.rotation.y;
+      let dy = yaw - this.prevYaw;
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      this.prevYaw = yaw;
+      this.turnRate += (dy / Math.max(dt, 0.001) - this.turnRate) * Math.min(1, dt * 8);
+      const bank = THREE.MathUtils.clamp(-this.turnRate * speed * 0.028, -0.09, 0.09);
+      this.mesh.rotation.z = Math.sin(this.phase) * (0.022 + storm * 0.012) + bank;
+      this.mesh.rotation.x =
+        0.03 +
+        Math.min(0.05, speed * 0.022) +
+        storm * 0.12 +
+        this.lean +
+        Math.sin(this.phase * 2) * 0.012;
       // Shopping bag swings a touch livelier.
       this.mesh.position.x = Math.sin(this.phase * 0.5) * 0.008;
       this.mesh.rotation.y += (0 - this.mesh.rotation.y) * Math.min(1, dt * 5);
@@ -219,6 +233,7 @@ export class CrowdAvatar {
       this.mesh.rotation.z += (0 - this.mesh.rotation.z) * Math.min(1, dt * 4);
       this.mesh.rotation.x += (this.lean + storm * 0.14 - this.mesh.rotation.x) * Math.min(1, dt * 4);
       this.mesh.rotation.y = Math.sin(elapsed * 0.45 + this.phase) * 0.3 * idle;
+      this.turnRate *= Math.max(0, 1 - dt * 6);
     }
     // Browsers reach toward the goods — a small forward pulse on top of the lean.
     if (browse > 0.05) {
