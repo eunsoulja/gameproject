@@ -74,6 +74,12 @@ const PLAYER_LINES = [
   'Salamat sa pag-join!', 'Uy, ang galing mo, angas!',
   'Hoy brader! Masarap dito, di ba?', 'Kumusta sa tindahan!',
 ];
+// Shared-payong greetings when it rains.
+const UMBRELLA_LINES = [
+  'Sabay tayo sa payong, ha!', 'Sukli ng payong, salamat!',
+  'Ay, basa ang balikat mo!', 'Itulak mo yung payong mo!',
+  'Sama-sama, hindi tayo lalunod!', 'Sige, sundo mo sa payong ko!',
+];
 // Calls vendors make from behind their own counters.
 const VENDOR_LINES = [
   'Sari-sari store! Pabili ka na!', 'Sobrang linis dito, ha!',
@@ -406,7 +412,9 @@ export class CrowdSystem {
     if (customer.state === 'scan') {
       if (customer.timer <= 0) {
         // Neighbors stop to gossip now and then — pairs face off and chat.
-        if (this.rng() < 0.12 && this.tryStartChat(customer)) {
+        // Umbrella buddies huddle up even more eagerly in the rain.
+        const chatChance = this.rainy ? 0.2 : 0.12;
+        if (this.rng() < chatChance && this.tryStartChat(customer)) {
           // handled inside tryStartChat
         } else {
           this.chooseTarget(customer);
@@ -649,7 +657,15 @@ export class CrowdSystem {
       c.chatPartner = c === customer ? partner : customer;
       c.timer = range(this.rng, 0.7, 1.1);
       c.speed = 0;
-      c.avatar.say(pick(this.rng, ['Kumusta!', 'Uy!', 'Hello!', 'Sige!', 'Hoy!']), 1.4);
+      c.avatar.say(
+        pick(
+          this.rng,
+          this.rainy && customer.hasUmbrella && partner.hasUmbrella
+            ? UMBRELLA_LINES
+            : ['Kumusta!', 'Uy!', 'Hello!', 'Sige!', 'Hoy!'],
+        ),
+        1.4,
+      );
       c.avatar.react();
     }
     customer.chatDuration = duration;
