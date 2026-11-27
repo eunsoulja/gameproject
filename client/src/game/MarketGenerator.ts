@@ -77,6 +77,9 @@ export class MarketGenerator {
   /** Swaying laundry cloth — individual meshes so they can flutter. */
   private laundry: Array<{ mesh: THREE.Mesh; phase: number }> = [];
   private laundryMat: THREE.Material | null = null;
+  /** Grill smoke and steamer plumes over NPC food stalls. */
+  private steamVents: Array<{ sprite: THREE.Sprite; base: THREE.Vector3; phase: number }> = [];
+  private steamTexture: THREE.Texture | null = null;
   /** Keeper posts behind row-0 stalls — CrowdSystem mans these with vendors. */
   public readonly vendorSpots: Array<{ x: number; z: number; yaw: number }> = [];
 
@@ -135,6 +138,59 @@ export class MarketGenerator {
     for (const item of this.laundry) {
       item.mesh.rotation.x = Math.sin(elapsed * 1.4 + item.phase) * 0.22;
       item.mesh.rotation.z = Math.sin(elapsed * 0.9 + item.phase * 1.7) * 0.07;
+    }
+    // Steam puffs rise off the grills and steamers.
+    for (const vent of this.steamVents) {
+      const t = (elapsed * 0.4 + vent.phase) % 1;
+      vent.sprite.position.set(
+        vent.base.x + Math.sin(elapsed * 1.2 + vent.phase) * 0.16,
+        vent.base.y + t * 1.6,
+        vent.base.z + Math.cos(elapsed * 1.0 + vent.phase) * 0.12,
+      );
+      vent.sprite.scale.setScalar(0.28 + t * 0.5);
+      (vent.sprite.material as THREE.SpriteMaterial).opacity = Math.sin(t * Math.PI) * 0.3;
+    }
+  }
+
+  private makeSteamSprite(): THREE.Sprite {
+    if (!this.steamTexture) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d')!;
+      const gradient = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+      gradient.addColorStop(0, 'rgba(255,244,230,0.5)');
+      gradient.addColorStop(0.6, 'rgba(235,230,220,0.2)');
+      gradient.addColorStop(1, 'rgba(235,230,220,0)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 64, 64);
+      this.steamTexture = new THREE.CanvasTexture(canvas);
+    }
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this.steamTexture,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
+    sprite.scale.setScalar(0.3);
+    sprite.renderOrder = 4;
+    return sprite;
+  }
+
+  /** A trio of looping steam sprites above a grill or steamer. */
+  private addSteamVents(x: number, y: number, z: number): void {
+    if (this.steamVents.length >= 150) return; // sprite budget — the air stays readable
+    for (let i = 0; i < 3; i++) {
+      const sprite = this.makeSteamSprite();
+      sprite.position.set(x + range(this.rng, -0.15, 0.15), y, z + range(this.rng, -0.15, 0.15));
+      this.scene.add(sprite);
+      this.steamVents.push({
+        sprite,
+        base: sprite.position.clone(),
+        phase: (i * 0.33 + this.rng() * 0.2) % 1,
+      });
     }
   }
 
@@ -532,6 +588,8 @@ export class MarketGenerator {
         y: tableTop + 0.22,
         z: z + width * 0.22,
       }));
+      this.addSteamVents(centerX, tableTop + 0.3, z - width * 0.18);
+      this.addSteamVents(centerX + side * 0.1, tableTop + 0.38, z + width * 0.22);
       this.structural.push(cylinder(0.28, 0.28, 0.32, 10, '#d3b878', {
         x: front - side * 0.45,
         y: tableTop + 0.18,
