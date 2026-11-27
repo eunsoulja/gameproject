@@ -844,3 +844,23 @@ input::placeholder { color: #7d6a4c; }
 
 /* ── Phase 11: pricing intelligence hint ── */
 .price-hint { display: block; font-size: 6.5px; color: #9a8a70; margin-top: 1px; text-align: center; font-style: italic; }
+
+/* ── Phase 21: menu redesign pass 2 — pop-in & hover lift ── */
+.modal-card, .modal, [class*="modal"] > div {
+  animation: cartoon-pop 0.28s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes cartoon-pop {
+  from { transform: scale(0.92) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+.product-row {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.product-row:hover {
+  transform: translateX(3px);
+  box-shadow: -3px 0 0 var(--accent, #e8a33d);
+}
+.btn-buy-qty:active, .btn-gold:active, .btn-ghost:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.35) !important;
+}
