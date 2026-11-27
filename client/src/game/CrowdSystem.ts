@@ -13,10 +13,12 @@ export interface Customer {
   targetX: number;
   targetZ: number;
   speed: number;
-  state: 'walk' | 'browse' | 'scan' | 'chat' | 'queue' | 'waitFood' | 'eat' | 'leave' | 'sit' | 'vendor';
+  state: 'walk' | 'browse' | 'scan' | 'chat' | 'greet' | 'queue' | 'waitFood' | 'eat' | 'leave' | 'sit' | 'vendor';
   timer: number;
   chatLine: number;
   chatPartner: Customer | null;
+  /** How long the chat will run once the greeting beat ends. */
+  chatDuration: number;
   talkCd: number;
   /** Karendero queue slot (-1 = not queuing). */
   queueIndex: number;
@@ -213,6 +215,7 @@ export class CrowdSystem {
       timer: range(this.rng, 0, 2),
       chatLine: 0,
       chatPartner: null,
+      chatDuration: 0,
       talkCd: 0,
       queueIndex: -1,
       atSlot: false,
@@ -435,6 +438,20 @@ export class CrowdSystem {
         customer.speed += (targetSpeed - customer.speed) * Math.min(1, dt * 4);
         customer.faceYaw = Math.atan2(nx, nz);
       }
+    } else if (customer.state === 'greet') {
+      // Hello beat — face the partner, then settle into the chat.
+      customer.speed += (0 - customer.speed) * Math.min(1, dt * 6);
+      const partner = customer.chatPartner;
+      if (partner) {
+        const pdx = partner.x - customer.x;
+        const pdz = partner.z - customer.z;
+        if (Math.hypot(pdx, pdz) > 0.2) customer.faceYaw = Math.atan2(pdx, pdz);
+      }
+      if (customer.timer <= 0) {
+        customer.state = 'chat';
+        customer.timer = customer.chatDuration;
+        customer.chatLine = range(this.rng, 0.3, 1.3);
+      }
     } else if (customer.state === 'chat') {
       // Standing conversation — face the partner (or the player) and trade lines.
       customer.speed += (0 - customer.speed) * Math.min(1, dt * 6);
@@ -626,16 +643,17 @@ export class CrowdSystem {
     }
     if (!partner) return false;
     const duration = range(this.rng, 3.5, 6.5);
-    customer.state = 'chat';
-    customer.chatPartner = partner;
-    customer.timer = duration;
-    customer.chatLine = range(this.rng, 0.2, 1.0);
-    customer.speed = 0;
-    partner.state = 'chat';
-    partner.chatPartner = customer;
-    partner.timer = duration;
-    partner.chatLine = range(this.rng, 0.9, 1.9);
-    partner.speed = 0;
+    // A beat of hellos and waves before the real conversation starts.
+    for (const c of [customer, partner]) {
+      c.state = 'greet';
+      c.chatPartner = c === customer ? partner : customer;
+      c.timer = range(this.rng, 0.7, 1.1);
+      c.speed = 0;
+      c.avatar.say(pick(this.rng, ['Kumusta!', 'Uy!', 'Hello!', 'Sige!', 'Hoy!']), 1.4);
+      c.avatar.react();
+    }
+    customer.chatDuration = duration;
+    partner.chatDuration = duration;
     return true;
   }
 
@@ -644,7 +662,7 @@ export class CrowdSystem {
     let best: Customer | null = null;
     let bestD = radius;
     for (const c of this.customers) {
-      if (!c.active || c.state === 'chat' || c.queueIndex >= 0) continue;
+      if (!c.active || c.state === 'chat' || c.state === 'greet' || c.queueIndex >= 0) continue;
       if (c.state === 'waitFood' || c.state === 'eat' || c.state === 'leave') continue;
       const d = Math.hypot(c.x - x, c.z - z);
       if (d < bestD) {
