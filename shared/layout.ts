@@ -22,28 +22,51 @@ export interface PlotSlot {
   rotY: number;
   side: 'west' | 'east';
   sign: string;
+  /** Lot tier: standard bay, corner double-frontage, or flagship wide lot. */
+  kind: 'standard' | 'corner' | 'flagship';
+  /** Stall width along the street (z axis). */
+  width: number;
 }
 
 const WEST_Z = [76, 63, 50, 37, 24, 11, -2, -15];
 const EAST_Z = [82, 69, 56, 43, 30, 17, 4, -9];
 
+function lotKind(z: number): PlotSlot['kind'] {
+  // Flagship lots face the arch/spawn drag; corner lots edge the plaza.
+  if (z >= 68) return 'flagship';
+  if (z >= -24 && z <= 22) return 'corner';
+  return 'standard';
+}
+
+function lotWidth(kind: PlotSlot['kind']): number {
+  return kind === 'flagship' ? 6.1 : kind === 'corner' ? 5.5 : 4.6;
+}
+
 export const PLOT_SLOTS: PlotSlot[] = [];
 for (let i = 0; i < 8; i++) {
+  const wz = WEST_Z[i];
+  const wk = lotKind(wz);
   PLOT_SLOTS.push({
     index: PLOT_SLOTS.length,
     x: -9.6,
-    z: WEST_Z[i],
+    z: wz,
     rotY: Math.PI / 2,
     side: 'west',
     sign: `COLON BAY W${String(i + 1).padStart(2, '0')}`,
+    kind: wk,
+    width: lotWidth(wk),
   });
+  const ez = EAST_Z[i];
+  const ek = lotKind(ez);
   PLOT_SLOTS.push({
     index: PLOT_SLOTS.length,
     x: 9.6,
-    z: EAST_Z[i],
+    z: ez,
     rotY: -Math.PI / 2,
     side: 'east',
     sign: `COLON BAY E${String(i + 1).padStart(2, '0')}`,
+    kind: ek,
+    width: lotWidth(ek),
   });
 }
 

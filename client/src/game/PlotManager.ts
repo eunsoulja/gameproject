@@ -213,7 +213,8 @@ export class PlotManager {
     const metal: THREE.BufferGeometry[] = [];
     const front = slot.x - inward * 0.3;
     const outward = -inward;
-    const width = isSelf ? 5.15 : plot ? 4.95 : 4.5;
+    // Lot width comes from the slot — flagship and corner lots run wider.
+    const width = isSelf ? slot.width + 0.55 : plot ? slot.width + 0.35 : Math.max(4.2, slot.width - 0.1);
     const counterY = plot ? 1.02 : 0.9;
     const canopyY = plot ? 2.95 : 2.62;
     const centerX = front + outward * 1.35;
