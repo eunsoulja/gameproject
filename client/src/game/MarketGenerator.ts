@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DISTRICTS, WORLD, districtAt, zoneCategoryAt } from '../../../shared/layout';
+import { DISTRICTS, PLOT_SLOTS, WORLD, districtAt, zoneCategoryAt } from '../../../shared/layout';
 import type { StallCategory } from '../../../shared/config';
 import type { QualitySetting } from '../systems/Settings';
 import type { CollisionSystem } from './CollisionSystem';
@@ -136,6 +136,11 @@ export class MarketGenerator {
           const width = range(this.rng, 3.9, 5.4);
           if (this.nearSideStreet(z, width / 2 + 2.5)) {
             z += 5;
+            continue;
+          }
+          // Player bays own their footprints — never drop an NPC stall on top.
+          if (this.nearPlayerBay(side, z + width / 2)) {
+            z += width + 2;
             continue;
           }
           spots.push({
@@ -294,6 +299,19 @@ export class MarketGenerator {
 
   private nearSideStreet(z: number, margin: number): boolean {
     return WORLD.sideStreets.some((street) => Math.abs(z - street) < WORLD.sideStreetHalfWidth + margin);
+  }
+
+  /**
+   * Row-0 NPC stalls share the player bays' footprint (front x ≈ 9.9, depth ≈ 3),
+   * so any spot whose z overlaps a bay would render a second stall on top of it.
+   */
+  private nearPlayerBay(side: -1 | 1, z: number): boolean {
+    const slotSide = side === -1 ? 'west' : 'east';
+    for (const slot of PLOT_SLOTS) {
+      if (slot.side !== slotSide) continue;
+      if (Math.abs(slot.z - z) < slot.width / 2 + 3.0) return true;
+    }
+    return false;
   }
 
   private buildStall(spot: StallSpot): void {
