@@ -37,7 +37,7 @@ export interface Customer {
   active: boolean;
   bob: number;
   hasUmbrella: boolean;
-  role: 'walker' | 'sleeper' | 'linger';
+  role: 'walker' | 'sleeper' | 'linger' | 'kid';
 }
 
 const SHIRTS = ['#d9534a', '#3f8ccc', '#f0b64c', '#63a56c', '#9a66c4', '#ef8a52', '#ede3cc', '#3d4a5e', '#c56c93', '#5fb3a8'];
@@ -186,6 +186,12 @@ export class CrowdSystem {
       hair: pick(this.rng, HAIRS),
     };
     const avatar = new CrowdAvatar(appearance, range(this.rng, 0.88, 1.03));
+    // Roughly one shopper in nine is a kid — smaller, quicker, skips sometimes.
+    const isKid = index % 11 === 4;
+    if (isKid) {
+      avatar.root.scale.multiplyScalar(0.58);
+      avatar.setKid(true);
+    }
     avatar.root.visible = false;
     this.scene.add(avatar.root);
     const x = range(this.rng, -7.5, 7.5);
@@ -217,7 +223,7 @@ export class CrowdSystem {
       active: false,
       bob: index * 0.13,
       hasUmbrella: index % 5 < 2,
-      role: index % 9 === 0 ? 'sleeper' : index % 7 === 0 ? 'linger' : 'walker',
+      role: isKid ? 'kid' : index % 9 === 0 ? 'sleeper' : index % 7 === 0 ? 'linger' : 'walker',
     };
   }
 
@@ -411,13 +417,15 @@ export class CrowdSystem {
         customer.timer =
           range(this.rng, 1.8, 5.6) *
           (this.eventVisual === 'crowd' ? 1.35 : 1) *
-          (customer.role === 'linger' ? 2.4 : 1);
+          (customer.role === 'linger' ? 2.4 : 1) *
+          (customer.role === 'kid' ? 0.7 : 1);
         if (this.eventVisual === 'crowd') customer.timer += 1.2;
         customer.faceYaw = this.browseYaw(customer);
       } else {
         const nx = dx / distance;
         const nz = dz / distance;
-        const step = Math.min(distance, targetSpeed * dt);
+        const pace = customer.role === 'kid' ? 1.3 : 1;
+        const step = Math.min(distance, targetSpeed * pace * dt);
         customer.x += nx * step;
         customer.z += nz * step;
         customer.speed += (targetSpeed - customer.speed) * Math.min(1, dt * 4);

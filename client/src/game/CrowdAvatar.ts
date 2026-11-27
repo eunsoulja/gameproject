@@ -110,6 +110,12 @@ export class CrowdAvatar {
     this.umbrellaGroup.visible = on;
   }
 
+  private kid = false;
+
+  setKid(on: boolean): void {
+    this.kid = on;
+  }
+
   /** Forward hunch (radians) — used when browsing a stall. */
   setLean(value: number): void {
     this.leanTarget = value;
@@ -219,10 +225,14 @@ export class CrowdAvatar {
     if (speed > 0.08) {
       // Faster feet in a storm — hurried shuffle, deeper bob.
       const hurry = 1 + storm * 0.55;
-      this.phase += dt * (4.8 + Math.min(3, speed * 1.5)) * hurry;
-      const bobAmp = 0.035 + storm * 0.02;
+      // Kids scamper — quicker stride, springier bob.
+      this.phase += dt * (4.8 + Math.min(3, speed * 1.5)) * hurry * (this.kid ? 1.45 : 1);
+      const bobAmp = (0.035 + storm * 0.02) * (this.kid ? 1.5 : 1);
       // Heel-strike shape — sharper contact, softer push-off.
-      this.mesh.position.y = Math.pow(Math.abs(Math.sin(this.phase)), 0.85) * bobAmp;
+      let hop = Math.pow(Math.abs(Math.sin(this.phase)), 0.85) * bobAmp;
+      // Occasional skip — a sharp little bound every few strides.
+      if (this.kid) hop += Math.pow(Math.max(0, Math.sin(elapsed * 2.1 + this.phase * 0.7)), 10) * 0.14;
+      this.mesh.position.y = hop;
       // Body roll into the stride, banking into turns, plus speed hunch.
       const yaw = this.root.rotation.y;
       let dy = yaw - this.prevYaw;
