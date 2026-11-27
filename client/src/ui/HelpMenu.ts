@@ -17,6 +17,8 @@ export function openHelpMenu(): void {
           <div class="help-card">
             <b>${icon('bag', 14)} Open your stall</b>
             <p>Walk to the glowing counter in front of your bay and press <b>E</b> to buy stock, set prices and activate power-ups. Stock runs out as customers buy.</p>
+            <b>${icon('coin', 14)} Serve customers yourself</b>
+            <p>Step out to the walkway edge of your counter and press <b>E</b> to personally serve a customer — you earn <b>full price with no haggling</b>, plus occasional tips. Standing there beats letting the stall run on its own.</p>
           </div>
           <div class="help-card">
             <b>${icon('arrowUp', 14)} Upgrade pads</b>

@@ -21,6 +21,7 @@ import type {
   PublicPlot,
   RemotePlayer,
 } from '../../../shared/types';
+import { PLOT_SLOTS } from '../../../shared/layout';
 import { NetworkClient, type ConnectionState } from '../systems/NetworkClient';
 import { SettingsManager, type GameSettings } from '../systems/Settings';
 import { openDailyReport } from '../ui/DailyReportMenu';
@@ -103,6 +104,8 @@ export class Game {
   private activeEmote: string | null = null;
   private emoteUntil = 0;
   private lastEmoteSent: string | null = null;
+  private lastServeAttempt = -10;
+  private lastServeInFlight = false;
   private onboarded = false;
   private muted = false;
   private earnedBadges = new Set<string>();
@@ -684,6 +687,25 @@ export class Game {
             this.shopMenu.open('stock');
           },
         });
+        // Counter spot out on the walkway — serving here earns full price + tips.
+        const slot = PLOT_SLOTS[point.index];
+        if (slot) {
+          const inward = slot.side === 'west' ? 1 : -1;
+          const counterPos = new THREE.Vector3(slot.x + inward * 3.1, 1.1, slot.z);
+          items.push({
+            id: `serve-${point.index}`,
+            position: counterPos,
+            radius: 2.1,
+            title: 'Serve a customer',
+            subtitle: stock > 0 ? 'Full price, no haggling — plus tips' : 'No stock on the shelf',
+            price: stock > 0 ? 'POS' : undefined,
+            priority: 1,
+            enabled: () =>
+              Object.values(this.profile?.inventory ?? {}).some((v) => v > 0) &&
+              this.elapsed - this.lastServeAttempt > 1.2,
+            action: () => this.serveCustomer(counterPos),
+          });
+        }
       } else {
         items.push({
           id: `visit-${point.index}`,
@@ -733,6 +755,31 @@ export class Game {
     });
 
     this.interaction.setItems(items);
+  }
+
+  /** Hands-on counter sale — full price plus tips, server-authoritative. */
+  private serveCustomer(at: THREE.Vector3): void {
+    if (!this.player || this.lastServeInFlight) return;
+    this.lastServeAttempt = this.elapsed;
+    this.lastServeInFlight = true;
+    void this.network.serveCustomer().then((result) => {
+      this.lastServeInFlight = false;
+      if (!this.player) return;
+      if (result.ok && result.data) {
+        const sale = result.data;
+        const total = sale.revenue + sale.tip;
+        const atPos = this.player.position.clone();
+        atPos.y += 2.1;
+        this.floatingText.cash(total, atPos);
+        if (sale.tip > 0) {
+          this.floatingText.spawn(atPos.clone().add(new THREE.Vector3(0.9, 0.4, 0)), `tip +${peso(sale.tip)}`, 'info');
+        }
+        this.audio.sale();
+        window.setTimeout(() => this.audio.cash(), 180);
+      } else if (!result.ok && result.error && !result.error.includes('breath')) {
+        this.notifications?.show({ kind: 'warning', title: 'Cannot serve', message: result.error }, 2600);
+      }
+    });
   }
 
   private applySettings(settings: GameSettings): void {

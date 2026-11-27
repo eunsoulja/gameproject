@@ -597,7 +597,7 @@ export function ensureQuest(profile: PlayerProfile, day: number): void {
 }
 
 /** Fold this tick's sales into the active quest. */
-function updateQuestProgress(
+export function updateQuestProgress(
   profile: PlayerProfile,
   sold: number,
   revenue: number,

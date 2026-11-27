@@ -94,6 +94,13 @@ export function registerGameSockets(io: Server, game: GameService): void {
       });
     });
 
+    socket.on('serveCustomer', (ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 100)) return { ok: false, error: 'Slow down a moment.' };
+        return game.serveCustomer(socket.id);
+      });
+    });
+
     socket.on('setPrice', (payload: unknown, ack: Ack) => {
       safe(ack, () => {
         if (!rateLimit(socket, 80)) return { ok: false, error: 'Slow down a moment.' };

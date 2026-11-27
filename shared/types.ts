@@ -193,6 +193,15 @@ export interface PriceRequest {
   price: number;
 }
 
+export interface SaleReceipt {
+  productId: string;
+  productName: string;
+  quantity: number;
+  revenue: number;
+  tip: number;
+  balance: number;
+}
+
 export interface NotificationPayload {
   kind: 'info' | 'success' | 'warning' | 'danger' | 'event';
   title: string;
@@ -238,6 +247,7 @@ export type ClientEventMap = {
   position: (payload: PositionPayload) => void;
   purchaseUpgrade: (payload: PurchaseRequest, ack: (result: Ack<PlayerProfile>) => void) => void;
   buyStock: (payload: StockRequest, ack: (result: Ack<PlayerProfile>) => void) => void;
+  serveCustomer: (ack: (result: Ack<SaleReceipt>) => void) => void;
   setPrice: (payload: PriceRequest, ack: (result: Ack<PlayerProfile>) => void) => void;
   setBusinessName: (payload: { name: string }, ack: (result: Ack<PlayerProfile>) => void) => void;
   setAppearance: (payload: Appearance, ack: (result: Ack<PlayerProfile>) => void) => void;

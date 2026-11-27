@@ -11,6 +11,7 @@ import type {
   PositionPayload,
   PublicPlot,
   RemotePlayer,
+  SaleReceipt,
 } from '../../../shared/types';
 import type { ActiveEventState, StallCategory, UpgradeBranch } from '../../../shared/config';
 
@@ -69,6 +70,7 @@ interface ClientToServerEvents {
     payload: { productId: string; quantity: number },
     ack: (result: Ack<PlayerProfile>) => void,
   ) => void;
+  serveCustomer: (ack: (result: Ack<SaleReceipt>) => void) => void;
   setPrice: (
     payload: { productId: string; price: number },
     ack: (result: Ack<PlayerProfile>) => void,
@@ -302,6 +304,10 @@ export class NetworkClient {
 
   buyStock(productId: string, quantity: number): Promise<Ack<PlayerProfile>> {
     return this.emitAck('buyStock', { productId, quantity });
+  }
+
+  serveCustomer(): Promise<Ack<SaleReceipt>> {
+    return this.emitAck('serveCustomer', {});
   }
 
   setPrice(productId: string, price: number): Promise<Ack<PlayerProfile>> {

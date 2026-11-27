@@ -19,7 +19,7 @@ import {
   type StallCategory,
   type UpgradeBranch,
 } from '../../../shared/config';
-import { spawnForPlot } from '../../../shared/layout';
+import { plotSlot, spawnForPlot } from '../../../shared/layout';
 import type {
   Ack,
   Appearance,
@@ -29,6 +29,7 @@ import type {
   PlayerProfile,
   PositionPayload,
   RemotePlayer,
+  SaleReceipt,
 } from '../../../shared/types';
 import { SERVER_CONFIG } from '../config';
 import { SaveService, type StoredProfile } from './SaveService';
@@ -44,6 +45,7 @@ import {
   normalizeProfile,
   simulateSales,
   syncExpiredPowerUps,
+  updateQuestProgress,
   updateWeather,
   type EconomyNotice,
 } from './EconomyService';
@@ -60,6 +62,7 @@ interface PlayerRecord {
   emoteUntil: number;
   lowStockWarnAt: number;
   lastActionAt: number;
+  lastServeAt: number;
 }
 
 interface PendingOffer {
@@ -136,6 +139,7 @@ export class GameService {
           emote: null,
           emoteUntil: 0,
           lastActionAt: 0,
+          lastServeAt: 0,
         });
         this.nameIndex.set(nameKey, profile.id);
       } catch (error) {
@@ -371,6 +375,7 @@ export class GameService {
       emote: null,
       emoteUntil: 0,
       lastActionAt: 0,
+      lastServeAt: 0,
     };
     record.profile.online = true;
     record.profile.activeEvent = this.activeEvent;
@@ -503,6 +508,99 @@ export class GameService {
     this.emitProfile(record);
     void this.saveService.save(this.serializeRecord(record)!);
     return { ok: true, data: record.profile };
+  }
+
+  /**
+   * Hands-on sale: the vendor personally serves a customer at their own stall.
+   * Full price (no haggle discount) plus an occasional tip — the reward for
+   * actually standing at the counter instead of letting the sim run.
+   */
+  serveCustomer(socketId: string): Ack<SaleReceipt> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    const profile = record.profile;
+    const now = Date.now();
+
+    const slot = plotSlot(profile.plotIndex);
+    const dx = record.position.x - slot.x;
+    const dz = record.position.z - slot.z;
+    if (Math.hypot(dx, dz) > 9) {
+      return { ok: false, error: 'Step up to your own stall counter to serve a customer.' };
+    }
+    if (now - record.lastServeAt < 1100) return { ok: false, error: 'One customer at a time — catch your breath.' };
+
+    // Pick a product weighted by remaining stock, same as the sim.
+    const candidates: typeof PRODUCTS = [];
+    for (const product of PRODUCTS) {
+      if (!profile.unlockedCategories.includes(product.category)) continue;
+      const stock = profile.inventory[product.id] ?? 0;
+      for (let w = 0; w < Math.min(stock, 12); w++) candidates.push(product);
+    }
+    if (!candidates.length) {
+      return { ok: false, error: 'Nothing on the shelf — restock at the Shop first.' };
+    }
+    record.lastServeAt = now;
+
+    const product = candidates[Math.floor(Math.random() * candidates.length)];
+    let quantity = 1;
+    if (profile.powerUps.some((p) => p.id === 'sukiDay' && (p.endsAt === null || p.endsAt > now))) {
+      quantity = 2;
+    }
+    quantity = Math.min(quantity, profile.inventory[product.id] ?? 0);
+    if (quantity <= 0) return { ok: false, error: 'That item just sold out.' };
+
+    profile.inventory[product.id] -= quantity;
+    const unitPrice = effectiveSellingPrice(profile, product);
+    const revenue = unitPrice * quantity;
+    const tip = Math.random() < 0.3 ? Math.round(unitPrice * quantity * (0.1 + Math.random() * 0.25)) : 0;
+    const total = revenue + tip;
+
+    profile.balance += total;
+    profile.today.revenue += total;
+    profile.today.customers += 1;
+    profile.today.productsSold += quantity;
+    profile.today.soldByProduct[product.id] = (profile.today.soldByProduct[product.id] ?? 0) + quantity;
+    profile.lifetime.totalRevenue += total;
+    profile.lifetime.totalEarnings += total;
+    profile.lifetime.totalCustomers += 1;
+    profile.lifetime.totalProductsSold += quantity;
+    profile.reputation = Math.min(100, profile.reputation + 0.22);
+
+    const notices: EconomyNotice[] = [];
+    updateQuestProgress(profile, quantity, total, 1, notices);
+    for (const notice of notices) this.notifyRecord(record, notice);
+
+    // Occasional market chatter so serving feels alive, throttled hard.
+    if (now - profile.lastSukiNoticeAt > 45_000 && Math.random() < 0.18) {
+      profile.lastSukiNoticeAt = now;
+      this.notifyRecord(record, {
+        kind: 'info',
+        title: 'Word travels fast',
+        message: `A customer paid full price for your ${product.name} — no haggling needed when you serve them yourself.`,
+      });
+    }
+
+    this.saveService.recordTransaction(
+      profile.id,
+      'sale',
+      total,
+      profile.balance,
+      `${quantity}x ${product.name} (counter sale)`,
+    );
+    this.emitProfile(record);
+    void this.saveService.save(this.serializeRecord(record)!);
+
+    return {
+      ok: true,
+      data: {
+        productId: product.id,
+        productName: product.name,
+        quantity,
+        revenue,
+        tip,
+        balance: profile.balance,
+      },
+    };
   }
 
   setPrice(socketId: string, productId: string, price: number): Ack<PlayerProfile> {
