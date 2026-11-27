@@ -929,21 +929,42 @@ export class GameService {
     // legends also squeeze a deeper discount when they win.
     const chance = Math.min(0.95, 0.45 + record.profile.reputation / 200);
     const current = record.profile.supplierPrices[cat] ?? 1;
+    const tierRoll = Math.random();
     if (Math.random() < chance) {
-      const discount = 0.8 + Math.random() * 0.08 - Math.min(0.08, record.profile.reputation / 1500);
+      // Tiered outcome: legends land 'great' deals — deeper cut plus a free
+      // crate of the category's first product; everyone else gets 'fair'.
+      const great = tierRoll < 0.22 + record.profile.reputation / 1200;
+      const discount = great
+        ? 0.68 + Math.random() * 0.08
+        : 0.8 + Math.random() * 0.08 - Math.min(0.08, record.profile.reputation / 1500);
       record.profile.supplierPrices[cat] = Math.max(0.55, Math.round(current * discount * 100) / 100);
+      let bonusNote = '';
+      if (great) {
+        const first = PRODUCTS.find((p) => p.category === cat);
+        if (first) {
+          const qty = Math.min(8, Math.max(2, Math.floor(first.maxStock * 0.15)));
+          record.profile.inventory[first.id] = Math.min(
+            first.maxStock,
+            (record.profile.inventory[first.id] ?? 0) + qty,
+          );
+          bonusNote = ` They also threw in ${qty}x ${first.name} on the house.`;
+        }
+      }
       this.notifyRecord(record, {
         kind: 'success',
-        title: 'Supplier deal struck',
-        message: `Your ${STALL_CATEGORIES[cat].shortName} wholesaler knocked ${Math.round((1 - discount) * 100)}% off today's prices.`,
+        title: great ? 'Dream deal struck!' : 'Supplier deal struck',
+        message: `Your ${STALL_CATEGORIES[cat].shortName} wholesaler knocked ${Math.round((1 - discount) * 100)}% off today's prices.${bonusNote}`,
       });
     } else {
-      const markup = 1.04 + Math.random() * 0.04;
+      const markup = tierRoll > 0.75 ? 1.12 + Math.random() * 0.06 : 1.04 + Math.random() * 0.04;
       record.profile.supplierPrices[cat] = Math.min(1.7, Math.round(current * markup * 100) / 100);
       this.notifyRecord(record, {
         kind: 'warning',
         title: 'Haggling backfired',
-        message: `The ${STALL_CATEGORIES[cat].shortName} supplier heard you out — then raised prices a touch.`,
+        message:
+          markup > 1.1
+            ? `The ${STALL_CATEGORIES[cat].shortName} supplier heard you out — then raised prices sharply.`
+            : `The ${STALL_CATEGORIES[cat].shortName} supplier heard you out — then raised prices a touch.`,
       });
     }
     record.profile.updatedAt = Date.now();
