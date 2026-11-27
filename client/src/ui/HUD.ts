@@ -55,12 +55,19 @@ export class HUD {
   private tickTimer = 0;
   private hintTimer = 0;
   private promptVisible = false;
+  private objectivePinned = localStorage.getItem('merkado.objectivePinned') === '1';
 
   constructor(root: HTMLElement, actions: HUDActions) {
     this.root = root;
     this.actions = actions;
     this.render();
     this.bind();
+    this.el('powerup-strip').addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('[data-pin-objective]')) return;
+      this.objectivePinned = !this.objectivePinned;
+      localStorage.setItem('merkado.objectivePinned', this.objectivePinned ? '1' : '0');
+      this.renderPowerUps();
+    });
     this.tickTimer = window.setInterval(() => this.tick(), 500);
   }
 
@@ -412,7 +419,18 @@ export class HUD {
           <span class="time">${Math.min(quest.progress, quest.target)}/${quest.target}</span>
         </div>`
       : '';
-    strip.innerHTML = tutorialChip + questChip + active
+    // Pinned objective stays visible even after tutorial/quest chips clear.
+    let objectiveChip = tutorialChip + questChip;
+    if (this.objectivePinned && !tutorial && !quest) {
+      const goal = goalInfo(profile);
+      objectiveChip = `<div class="active-powerup quest-chip pinned" style="--pu-color:#8ecbff" title="${escapeHtml(goal.title)}">
+          ${icon('target', 13)}
+          <b>Goal</b>
+          <span class="time">${escapeHtml(goal.progressLabel || goal.title)}</span>
+        </div>`;
+    }
+    const pinBtn = `<button class="pin-objective ${this.objectivePinned ? 'on' : ''}" data-pin-objective title="${this.objectivePinned ? 'Unpin objective tracker' : 'Pin objective tracker'}">${icon('pin', 11)}</button>`;
+    strip.innerHTML = objectiveChip + active
       .map((pu) => {
         const def = powerUpDef(pu.id);
         let remaining = 'Until used';
@@ -426,7 +444,7 @@ export class HUD {
           </div>
         `;
       })
-      .join('');
+      .join('') + pinBtn;
   }
 
   private tick(): void {
