@@ -871,7 +871,8 @@ export class Game {
     this.npcTalkItem = {
       id: 'npc-talk',
       position: this.npcTalkPos,
-      radius: 2.5,
+      // Touch players get a more forgiving reach — no cursor precision.
+      radius: matchMedia('(pointer: coarse)').matches ? 3.6 : 2.5,
       title: 'Chat with a shopper',
       subtitle: 'Friendly market gossip',
       priority: -0.5,
