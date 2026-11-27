@@ -147,6 +147,7 @@ export function createNewProfile(input: {
     weather: { condition: 'clear', temperature: 24 },
     activeEvent: null,
     nextDayEvent: null,
+    marketRushUntil: 0,
     suki: [],
     lastSukiNoticeAt: 0,
     quest: null,
@@ -182,6 +183,7 @@ export function normalizeProfile(input: PlayerProfile): PlayerProfile {
   profile.weather = profile.weather ?? { condition: 'clear', temperature: 24 };
   profile.activeEvent = null;
   profile.nextDayEvent = profile.nextDayEvent ?? null;
+  profile.marketRushUntil = Number(profile.marketRushUntil) || 0;
   profile.suki = Array.isArray(profile.suki) ? profile.suki.slice(0, 14) : [];
   profile.lastSukiNoticeAt = Number(profile.lastSukiNoticeAt) || 0;
   profile.quest = profile.quest && typeof profile.quest.day === 'number' ? profile.quest : null;
@@ -358,6 +360,7 @@ export function simulateSales(
   profile: PlayerProfile,
   now: number,
   activeEvent: ActiveEventState | null,
+  rush = false,
 ): SaleResult {
   const notices: EconomyNotice[] = [];
   const soldOut: StallCategory[] = [];
@@ -386,6 +389,7 @@ export function simulateSales(
     traffic *
     timeModifier *
     difficultyTraffic(profile) *
+    (rush ? 1.45 : 1) *
     rand(0.72, 1.28);
 
   let serviceLeft = serviceCapacity(profile, now);

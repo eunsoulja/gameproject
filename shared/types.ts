@@ -116,6 +116,7 @@ export interface PlayerProfile {
   };
   activeEvent: ActiveEventState | null;
   nextDayEvent: string | null;
+  marketRushUntil: number;
   suki: SukiCustomer[];
   lastSukiNoticeAt: number;
   quest: DailyQuest | null;

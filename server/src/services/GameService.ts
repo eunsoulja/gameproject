@@ -109,6 +109,8 @@ export class GameService {
   private negotiationDay = new Map<string, number>();
   private offers = new Map<string, PendingOffer>();
   private haggles = new Map<string, PendingHaggle>();
+  private rushUntil = 0;
+  private nextRushAt = 0;
   private nextOfferAt = 0;
   private plotsDirty = true;
   private lastOnlineCount = 0;
@@ -172,6 +174,7 @@ export class GameService {
     this.lastTick = Date.now();
     this.nextEventAllowedAt = Date.now() + 55_000;
     this.nextOfferAt = Date.now() + 90_000;
+    this.nextRushAt = Date.now() + 4 * 60_000;
 
     const main = setInterval(() => this.tick(), 1000);
     const positions = setInterval(() => this.broadcastPositions(), Math.round(1000 / ONLINE_POSITION_HZ));
@@ -226,6 +229,7 @@ export class GameService {
 
     if (!this.activeEvent) this.maybeStartEvent(now);
     this.maybeSendOffer(now);
+    this.maybeStartRush(now);
 
     if (now - this.lastEconomyTick >= ECON_TICK_MS) {
       this.lastEconomyTick = now;
@@ -553,10 +557,12 @@ export class GameService {
     record.lastServeAt = now;
 
     const product = candidates[Math.floor(Math.random() * candidates.length)];
+    const rush = now < this.rushUntil && Math.random() < 0.4;
     let quantity = 1;
     if (profile.powerUps.some((p) => p.id === 'sukiDay' && (p.endsAt === null || p.endsAt > now))) {
       quantity = 2;
     }
+    if (rush) quantity += 1;
     quantity = Math.min(quantity, profile.inventory[product.id] ?? 0);
     if (quantity <= 0) return { ok: false, error: 'That item just sold out.' };
 
@@ -1018,6 +1024,21 @@ export class GameService {
 
   // ── Market simulation ─────────────────────────────────────────────────────
 
+  /** Every ~9 minutes a tour group sweeps the street — 75s of bonus traffic. */
+  private maybeStartRush(now: number): void {
+    if (now < this.nextRushAt) return;
+    this.nextRushAt = now + (8 + Math.random() * 5) * 60_000;
+    this.rushUntil = now + 75_000;
+    for (const record of this.onlineRecords()) {
+      this.notifyRecord(record, {
+        kind: 'event',
+        title: 'Tour group inbound!',
+        message: 'A busload of sightseers is pouring into Colon Street — stock up and serve fast!',
+      });
+    }
+    console.log('[game] Rush hour — tour group on the street.');
+  }
+
   private simulateMarket(now: number): void {
     const online = this.onlineRecords();
     let activeSales = false;
@@ -1027,7 +1048,7 @@ export class GameService {
       profile.dayProgress = this.clock.progress;
       profile.activeEvent = this.activeEvent;
       try {
-        const result = simulateSales(profile, now, this.activeEvent);
+        const result = simulateSales(profile, now, this.activeEvent, now < this.rushUntil);
         for (const notice of advanceTutorial(profile, now)) {
           this.notifyRecord(record, notice);
           this.emitProfile(record);
@@ -1080,6 +1101,7 @@ export class GameService {
     record.profile.day = this.clock.day;
     record.profile.dayProgress = this.clock.progress;
     record.profile.activeEvent = this.activeEvent;
+    record.profile.marketRushUntil = this.rushUntil;
     record.profile.online = true;
     record.profile.updatedAt = Date.now();
     updateWeather(record.profile, this.currentWeather());
@@ -1090,6 +1112,7 @@ export class GameService {
     record.profile.day = this.clock.day;
     record.profile.dayProgress = this.clock.progress;
     record.profile.activeEvent = this.activeEvent;
+    record.profile.marketRushUntil = this.rushUntil;
     record.profile.online = true;
     updateWeather(record.profile, this.currentWeather());
     return {

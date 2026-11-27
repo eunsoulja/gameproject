@@ -966,7 +966,11 @@ export class Game {
     const progress = this.profile
       ? currentProgress(this.profile, this.profileReceivedAt)
       : 0.52 + Math.sin(this.elapsed * 0.008) * 0.015;
-    const visual = this.joined ? this.eventVisual : 'none';
+    const visual = this.joined
+      ? this.profile != null && this.profile.marketRushUntil > Date.now() + this.serverOffset
+        ? 'crowd'
+        : this.eventVisual
+      : 'none';
 
     if (hasProfile && this.joined) {
       this.input.setEnabled(!blocked);
