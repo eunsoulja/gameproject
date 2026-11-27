@@ -135,6 +135,7 @@ export class CrowdSystem {
   private playerEmoting = false;
   private vendorSpots: Array<{ x: number; z: number; yaw: number }> = [];
   private stormLevel = 0;
+  private nameTagsVisible = true;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -182,6 +183,12 @@ export class CrowdSystem {
     }
   }
 
+  /** NPC name plates follow the same "show names" setting as players. */
+  setNameTagsVisible(on: boolean): void {
+    this.nameTagsVisible = on;
+    for (const c of this.customers) c.avatar.setNameTagVisible(on);
+  }
+
   /** 0 = dry, ~0.5 = rain, 1 = typhoon — drives hunch, shuffle and umbrella tilt. */
   setStorm(level: number): void {
     this.stormLevel = level;
@@ -224,6 +231,9 @@ export class CrowdSystem {
     // Suki regulars — they keep coming back, and wear a star to prove it.
     const isSuki = index % 13 === 2;
     avatar.setSukiBadge(isSuki);
+    const npcName = NAMES[index % NAMES.length];
+    avatar.setNameTag(npcName);
+    avatar.setNameTagVisible(this.nameTagsVisible);
     if (isKid) {
       avatar.root.scale.multiplyScalar(0.58);
       avatar.setKid(true);
@@ -237,7 +247,7 @@ export class CrowdSystem {
     avatar.root.position.set(x, 0, z);
     return {
       avatar,
-      name: NAMES[index % NAMES.length],
+      name: npcName,
       x,
       z,
       targetX: x,

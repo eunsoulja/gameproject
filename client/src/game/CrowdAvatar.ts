@@ -22,6 +22,7 @@ export class CrowdAvatar {
   private bubbleTex: THREE.CanvasTexture | null = null;
   private bubbleLife = 0;
   private badge: THREE.Sprite | null = null;
+  private nameTag: THREE.Sprite | null = null;
   private cheer = 0;
   private prevYaw = 0;
   private turnRate = 0;
@@ -235,6 +236,41 @@ export class CrowdAvatar {
     this.badge.visible = true;
   }
 
+  /** Small name plate under the speech bubble — toggleable in settings. */
+  setNameTag(name: string): void {
+    if (this.nameTag) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    ctx.font = '600 30px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const width = Math.min(256, ctx.measureText(name).width + 44);
+    ctx.fillStyle = 'rgba(24,18,12,0.72)';
+    ctx.beginPath();
+    ctx.roundRect((256 - width) / 2, 8, width, 48, 14);
+    ctx.fill();
+    ctx.fillStyle = '#ffe9c4';
+    ctx.fillText(name, 128, 34);
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(canvas),
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
+    sprite.scale.set(1.35, 0.34, 1);
+    sprite.position.set(0, 1.92, 0);
+    sprite.renderOrder = 5;
+    this.root.add(sprite);
+    this.nameTag = sprite;
+  }
+
+  setNameTagVisible(on: boolean): void {
+    if (this.nameTag) this.nameTag.visible = on;
+  }
+
   /** Seated pose — haunches down onto a bench, leans back slightly. */
   setSit(on: boolean): void {
     this.sitTarget = on ? 1 : 0;
@@ -355,6 +391,10 @@ export class CrowdAvatar {
     if (this.badge) {
       (this.badge.material as THREE.SpriteMaterial).map?.dispose();
       (this.badge.material as THREE.SpriteMaterial).dispose();
+    }
+    if (this.nameTag) {
+      (this.nameTag.material as THREE.SpriteMaterial).map?.dispose();
+      (this.nameTag.material as THREE.SpriteMaterial).dispose();
     }
     this.umbrellaGroup.traverse((child) => {
       const mesh = child as THREE.Mesh;

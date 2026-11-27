@@ -1301,6 +1301,7 @@ export class Game {
     if (this.cameraRig) this.cameraRig.shakeEnabled = settings.cameraShake;
     this.remotePlayers?.setShadows(settings.quality === 'high');
     this.remotePlayers?.setShowNames(settings.showNames);
+    this.crowd?.setNameTagsVisible(settings.showNames);
     this.crowd?.setQuality(settings.quality);
     this.weather.setEnabled(settings.weatherEffects);
   }
