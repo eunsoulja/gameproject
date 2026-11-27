@@ -225,6 +225,8 @@ export interface SaleReceipt {
   customer?: CounterCustomerType;
   /** Karendero only — customer asks for extra rice right after being served. */
   upsell?: boolean;
+  /** Karendero only — bonus pesos from a fast-service streak. */
+  streakBonus?: number;
 }
 
 export interface NotificationPayload {

@@ -1078,11 +1078,14 @@ export class Game {
       this.heldDish = null;
       const at = this.player?.position.clone() ?? npc.avatar.position.clone();
       at.y += 2.2;
-      this.floatingText.cash(sale.revenue + sale.tip, at);
+      this.floatingText.cash(sale.revenue + sale.tip + (sale.streakBonus ?? 0), at);
       this.audio.sale();
       this.cameraRig.pulseFov(2.5);
       if (sale.tip > 0) {
         this.floatingText.spawn(at.clone().add(new THREE.Vector3(0.9, 0.4, 0)), `tip +${peso(sale.tip)}`, 'info');
+      }
+      if (sale.streakBonus) {
+        this.floatingText.spawn(at.clone().add(new THREE.Vector3(-0.9, 0.4, 0)), `streak +${peso(sale.streakBonus)}`, 'gain');
       }
       window.setTimeout(() => this.audio.cash(), 180);
       if (sale.upsell) this.showUpsellPrompt();

@@ -154,6 +154,8 @@ export class GameService {
   private lastOrderAt = new Map<string, number>();
   /** profileId → timestamp until which an "extra rice?" offer is open. */
   private karenderoUpsells = new Map<string, number>();
+  /** profileId → consecutive plates served within 12s of coming off the stove. */
+  private karenderoStreak = new Map<string, number>();
   private rushUntil = 0;
   private nextRushAt = 0;
   private nextOfferAt = 0;
@@ -917,7 +919,12 @@ export class GameService {
 
     const sukiRush = profile.dailyChallenge?.id === 'sukiRush';
     const tip = Math.random() < 0.3 ? Math.round(order.price * (0.1 + Math.random() * 0.25) * (sukiRush ? 1.5 : 1)) : 0;
-    const total = order.price + tip;
+    // Fast hands build a streak — each quick plate adds a small bonus, capped.
+    const fast = now - order.readyAt < 12_000;
+    const streak = fast ? (this.karenderoStreak.get(profile.id) ?? 0) + 1 : 0;
+    this.karenderoStreak.set(profile.id, streak);
+    const streakBonus = Math.min(streak, 5) * 3;
+    const total = order.price + tip + streakBonus;
     profile.balance += total;
     profile.today.revenue += total;
     profile.today.customers += 1;
@@ -954,6 +961,7 @@ export class GameService {
         balance: profile.balance,
         customer: 'local',
         upsell,
+        streakBonus: streakBonus || undefined,
       },
     };
   }
