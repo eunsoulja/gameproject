@@ -72,6 +72,14 @@ interface PendingOffer {
   record: PlayerRecord;
 }
 
+interface PendingHaggle {
+  productId: string;
+  quantity: number;
+  askPrice: number;
+  offerPrice: number;
+  expiresAt: number;
+}
+
 interface Clock {
   day: number;
   progress: number;
@@ -100,6 +108,7 @@ export class GameService {
   private lastEventType: MarketEventType | null = null;
   private negotiationDay = new Map<string, number>();
   private offers = new Map<string, PendingOffer>();
+  private haggles = new Map<string, PendingHaggle>();
   private nextOfferAt = 0;
   private plotsDirty = true;
   private lastOnlineCount = 0;
@@ -551,11 +560,95 @@ export class GameService {
     quantity = Math.min(quantity, profile.inventory[product.id] ?? 0);
     if (quantity <= 0) return { ok: false, error: 'That item just sold out.' };
 
-    profile.inventory[product.id] -= quantity;
     const unitPrice = Math.round(effectiveSellingPrice(profile, product) * firstNightBoost(profile));
-    const revenue = unitPrice * quantity;
-    const tip = Math.random() < 0.3 ? Math.round(unitPrice * quantity * (0.1 + Math.random() * 0.25)) : 0;
-    const total = revenue + tip;
+    const askPrice = unitPrice * quantity;
+
+    // Some customers haggle — tawadShield regulars trust your price and skip it.
+    const tawad = profile.powerUps.some((p) => p.id === 'tawadShield' && (p.endsAt === null || p.endsAt > now));
+    const haggleChance = tawad ? 0.04 : 0.3;
+    const existing = this.haggles.get(profile.id);
+    if (existing && existing.expiresAt > now) {
+      return { ok: false, error: 'A customer is still deciding — answer them first.' };
+    }
+    if (Math.random() < haggleChance) {
+      const offerPrice = Math.max(1, Math.round(askPrice * (0.78 + Math.random() * 0.1)));
+      this.haggles.set(profile.id, {
+        productId: product.id,
+        quantity,
+        askPrice,
+        offerPrice,
+        expiresAt: now + 6000,
+      });
+      return {
+        ok: true,
+        data: {
+          productId: product.id,
+          productName: product.name,
+          quantity: 0,
+          revenue: 0,
+          tip: 0,
+          balance: profile.balance,
+          haggle: {
+            productId: product.id,
+            productName: product.name,
+            quantity,
+            askPrice,
+            offerPrice,
+            expiresAt: this.haggles.get(profile.id)!.expiresAt,
+          },
+        },
+      };
+    }
+
+    return { ok: true, data: this.completeCounterSale(record, product, quantity, askPrice, now) };
+  }
+
+  /** Customer answered the haggle — accept at their offer or let them walk. */
+  respondHaggle(socketId: string, accept: boolean): Ack<SaleReceipt> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    const profile = record.profile;
+    const pending = this.haggles.get(profile.id);
+    const now = Date.now();
+    if (!pending || pending.expiresAt <= now) {
+      this.haggles.delete(profile.id);
+      return { ok: false, error: 'That customer already walked away.' };
+    }
+    this.haggles.delete(profile.id);
+    if (!accept) {
+      return {
+        ok: true,
+        data: {
+          productId: pending.productId,
+          productName: PRODUCT_BY_ID[pending.productId]?.name ?? 'item',
+          quantity: 0,
+          revenue: 0,
+          tip: 0,
+          balance: profile.balance,
+          refused: true,
+        },
+      };
+    }
+    const product = PRODUCT_BY_ID[pending.productId];
+    const inStock = profile.inventory[pending.productId] ?? 0;
+    if (!product || inStock < pending.quantity) {
+      return { ok: false, error: 'Not enough stock left to close that deal.' };
+    }
+    return { ok: true, data: this.completeCounterSale(record, product, pending.quantity, pending.offerPrice, now) };
+  }
+
+  /** Book a counter sale at the given total price and update all ledgers. */
+  private completeCounterSale(
+    record: PlayerRecord,
+    product: { id: string; name: string },
+    quantity: number,
+    priceTotal: number,
+    now: number,
+  ): SaleReceipt {
+    const profile = record.profile;
+    profile.inventory[product.id] -= quantity;
+    const tip = Math.random() < 0.3 ? Math.round(priceTotal * (0.1 + Math.random() * 0.25)) : 0;
+    const total = priceTotal + tip;
 
     profile.balance += total;
     profile.today.revenue += total;
@@ -572,13 +665,12 @@ export class GameService {
     updateQuestProgress(profile, quantity, total, 1, notices);
     for (const notice of notices) this.notifyRecord(record, notice);
 
-    // Occasional market chatter so serving feels alive, throttled hard.
     if (now - profile.lastSukiNoticeAt > 45_000 && Math.random() < 0.18) {
       profile.lastSukiNoticeAt = now;
       this.notifyRecord(record, {
         kind: 'info',
         title: 'Word travels fast',
-        message: `A customer paid full price for your ${product.name} — no haggling needed when you serve them yourself.`,
+        message: `A customer paid for your ${product.name} — no haggling needed when you serve them yourself.`,
       });
     }
 
@@ -593,15 +685,12 @@ export class GameService {
     void this.saveService.save(this.serializeRecord(record)!);
 
     return {
-      ok: true,
-      data: {
-        productId: product.id,
-        productName: product.name,
-        quantity,
-        revenue,
-        tip,
-        balance: profile.balance,
-      },
+      productId: product.id,
+      productName: product.name,
+      quantity,
+      revenue: priceTotal,
+      tip,
+      balance: profile.balance,
     };
   }
 

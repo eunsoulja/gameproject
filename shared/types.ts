@@ -194,6 +194,15 @@ export interface PriceRequest {
   price: number;
 }
 
+export interface HaggleOffer {
+  productId: string;
+  productName: string;
+  quantity: number;
+  askPrice: number;
+  offerPrice: number;
+  expiresAt: number;
+}
+
 export interface SaleReceipt {
   productId: string;
   productName: string;
@@ -201,6 +210,8 @@ export interface SaleReceipt {
   revenue: number;
   tip: number;
   balance: number;
+  haggle?: HaggleOffer;
+  refused?: boolean;
 }
 
 export interface NotificationPayload {
@@ -249,6 +260,10 @@ export type ClientEventMap = {
   purchaseUpgrade: (payload: PurchaseRequest, ack: (result: Ack<PlayerProfile>) => void) => void;
   buyStock: (payload: StockRequest, ack: (result: Ack<PlayerProfile>) => void) => void;
   serveCustomer: (ack: (result: Ack<SaleReceipt>) => void) => void;
+  respondHaggle: (
+    payload: { accept: boolean },
+    ack: (result: Ack<SaleReceipt>) => void,
+  ) => void;
   setPrice: (payload: PriceRequest, ack: (result: Ack<PlayerProfile>) => void) => void;
   setBusinessName: (payload: { name: string }, ack: (result: Ack<PlayerProfile>) => void) => void;
   setAppearance: (payload: Appearance, ack: (result: Ack<PlayerProfile>) => void) => void;

@@ -784,3 +784,60 @@ input::placeholder { color: #7d6a4c; }
   0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
   100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; }
 }
+
+/* ── Haggle prompt ────────────────────────────────────────────────────────── */
+
+.haggle-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 18vh;
+  transform: translateX(-50%);
+  z-index: 55;
+  animation: hagglePop 0.28s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.haggle-card {
+  min-width: 300px;
+  max-width: 380px;
+  background: #fff3d6;
+  border: 3px solid #1c1008;
+  border-radius: 18px;
+  box-shadow: 6px 6px 0 #1c1008;
+  padding: 16px 18px 14px;
+  text-align: center;
+  color: #1c1008;
+}
+.haggle-card b { font-family: 'Lilita One', sans-serif; font-size: 17px; letter-spacing: 0.04em; }
+.haggle-card p { margin: 8px 0 0; font-size: 13px; font-weight: 600; }
+.haggle-ask { color: #6b4a1f; }
+.haggle-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+.haggle-accept, .haggle-hold {
+  font-family: 'Lilita One', sans-serif;
+  font-size: 14px;
+  padding: 9px 16px;
+  border: 3px solid #1c1008;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #1c1008;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.haggle-accept { background: #57c9a1; color: #10241c; }
+.haggle-hold { background: #e8dcc0; color: #1c1008; }
+.haggle-accept:active, .haggle-hold:active { transform: translateY(3px); box-shadow: 0 1px 0 #1c1008; }
+.haggle-timer {
+  margin-top: 12px;
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(28, 16, 8, 0.15);
+  overflow: hidden;
+}
+.haggle-timer span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #d94b3d;
+  transform-origin: left center;
+}
+@keyframes hagglePop {
+  from { opacity: 0; transform: translateX(-50%) translateY(18px) scale(0.9); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}

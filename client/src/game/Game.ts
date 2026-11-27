@@ -111,6 +111,7 @@ export class Game {
   private intro: IntroCinematic | null = null;
   private introPlayed = false;
   private confetti: Confetti | null = null;
+  private hagglePrompt: HTMLElement | null = null;
   private onboarded = false;
   private muted = false;
   private earnedBadges = new Set<string>();
@@ -785,14 +786,22 @@ export class Game {
 
   /** Hands-on counter sale — full price plus tips, server-authoritative. */
   private serveCustomer(at: THREE.Vector3): void {
-    if (!this.player || this.lastServeInFlight) return;
+    if (!this.player || this.lastServeInFlight || this.hagglePrompt) return;
     this.lastServeAttempt = this.elapsed;
     this.lastServeInFlight = true;
     void this.network.serveCustomer().then((result) => {
       this.lastServeInFlight = false;
       if (!this.player) return;
+      if (result.ok && result.data?.haggle) {
+        this.showHagglePrompt(result.data.haggle);
+        return;
+      }
       if (result.ok && result.data) {
         const sale = result.data;
+        if (sale.refused) {
+          this.floatingText.spawn(this.player.position.clone().setY(2.2), 'customer walked', 'info');
+          return;
+        }
         const total = sale.revenue + sale.tip;
         const atPos = this.player.position.clone();
         atPos.y += 2.1;
@@ -808,6 +817,84 @@ export class Game {
         this.notifications?.show({ kind: 'warning', title: 'Cannot serve', message: result.error }, 2600);
       }
     });
+  }
+
+  /** Timed haggle prompt — accept the customer's offer or hold out for full price. */
+  private showHagglePrompt(haggle: NonNullable<import('../../../shared/types').SaleReceipt['haggle']>): void {
+    const root = document.getElementById('overlay-root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.className = 'haggle-prompt';
+    el.innerHTML = `
+      <div class="haggle-card">
+        <b>A customer haggles</b>
+        <p>"${escapeHtml(haggle.productName)} ×${haggle.quantity} — can you do ${peso(haggle.offerPrice)}?"</p>
+        <p class="haggle-ask">Your price: <b>${peso(haggle.askPrice)}</b></p>
+        <div class="haggle-actions">
+          <button type="button" class="haggle-accept">Accept ${peso(haggle.offerPrice)}</button>
+          <button type="button" class="haggle-hold">Hold out</button>
+        </div>
+        <div class="haggle-timer"><span></span></div>
+      </div>`;
+    root.appendChild(el);
+    this.hagglePrompt = el;
+
+    const timerBar = el.querySelector<HTMLElement>('.haggle-timer span')!;
+    const duration = Math.max(0, haggle.expiresAt - Date.now());
+    const started = performance.now();
+    let answered = false;
+
+    const answer = (accept: boolean): void => {
+      if (answered) return;
+      answered = true;
+      window.clearInterval(tick);
+      el.remove();
+      this.hagglePrompt = null;
+      void this.network.respondHaggle(accept).then((result) => {
+        if (!this.player) return;
+        if (result.ok && result.data && !result.data.refused) {
+          const sale = result.data;
+          const total = sale.revenue + sale.tip;
+          const atPos = this.player.position.clone();
+          atPos.y += 2.1;
+          this.floatingText.cash(total, atPos);
+          if (sale.tip > 0) {
+            this.floatingText.spawn(atPos.clone().add(new THREE.Vector3(0.9, 0.4, 0)), `tip +${peso(sale.tip)}`, 'info');
+          }
+          this.audio.sale();
+          this.cameraRig.pulseFov(2.5);
+          if (sale.tip >= 20) this.confetti?.burst(18, 0.45);
+          window.setTimeout(() => this.audio.cash(), 180);
+        } else if (result.ok && result.data?.refused) {
+          this.floatingText.spawn(this.player.position.clone().setY(2.2), 'customer walked', 'info');
+          this.audio.click();
+        } else if (!result.ok && result.error) {
+          this.floatingText.spawn(this.player.position.clone().setY(2.2), 'too late', 'info');
+        }
+      });
+    };
+
+    el.querySelector<HTMLButtonElement>('.haggle-accept')!.addEventListener('click', () => {
+      this.audio.click();
+      answer(true);
+    });
+    el.querySelector<HTMLButtonElement>('.haggle-hold')!.addEventListener('click', () => {
+      this.audio.click();
+      answer(false);
+    });
+
+    const tick = window.setInterval(() => {
+      const remaining = 1 - (performance.now() - started) / duration;
+      timerBar.style.transform = `scaleX(${Math.max(0, remaining)})`;
+      if (remaining <= 0) {
+        // Walked away — tell the server we refused so the offer clears.
+        answered = true;
+        window.clearInterval(tick);
+        el.remove();
+        this.hagglePrompt = null;
+        void this.network.respondHaggle(false);
+      }
+    }, 50);
   }
 
   private applySettings(settings: GameSettings): void {
