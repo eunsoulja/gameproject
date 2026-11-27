@@ -207,7 +207,29 @@ export class CrowdSystem {
       active++;
       this.updateCustomer(customer, dt, elapsed);
     }
+    this.separateCustomers(dt);
     if (active === 0) this.targetCount = Math.max(6, this.targetCount);
+  }
+
+  /** Soft-body separation — shoppers nudge apart instead of overlapping. */
+  private separateCustomers(dt: number): void {
+    const act = this.customers.filter((c) => c.active);
+    for (let i = 0; i < act.length; i++) {
+      const a = act[i];
+      for (let j = i + 1; j < act.length; j++) {
+        const b = act[j];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > 0.36 || d2 === 0) continue;
+        const d = Math.sqrt(d2) || 0.001;
+        const push = ((0.6 - d) / d) * 0.5 * Math.min(1, dt * 8);
+        a.x -= dx * push;
+        a.z -= dz * push;
+        b.x += dx * push;
+        b.z += dz * push;
+      }
+    }
   }
 
   private activate(customer: Customer): void {
