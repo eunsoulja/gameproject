@@ -15,6 +15,8 @@ export class CrowdAvatar {
   private umbrellaGroup: THREE.Group;
   private lean = 0;
   private leanTarget = 0;
+  private storm = 0;
+  private stormTarget = 0;
 
   constructor(appearance: Appearance, scale = 1) {
     const parts: THREE.BufferGeometry[] = [];
@@ -104,21 +106,58 @@ export class CrowdAvatar {
     this.leanTarget = value;
   }
 
+  /** 0 = dry, 1 = typhoon. Drives the storm hunch and umbrella tilt. */
+  setStorm(value: number): void {
+    this.stormTarget = value;
+  }
+
   get position(): THREE.Vector3 {
     return this.root.position;
   }
 
   update(dt: number, elapsed: number, speed: number): void {
     this.lean += (this.leanTarget - this.lean) * Math.min(1, dt * 6);
+    this.storm += (this.stormTarget - this.storm) * Math.min(1, dt * 2.5);
+    const storm = this.storm;
+    const idle = speed <= 0.08 ? 1 : 0;
+    const browse = Math.min(1, this.lean / 0.12);
+
     if (speed > 0.08) {
-      this.phase += dt * (4.8 + Math.min(3, speed * 1.5));
-      this.mesh.position.y = Math.abs(Math.sin(this.phase)) * 0.035;
-      this.mesh.rotation.z = Math.sin(this.phase) * 0.022;
-      this.mesh.rotation.x = 0.035 + this.lean;
+      // Faster feet in a storm — hurried shuffle, deeper bob.
+      const hurry = 1 + storm * 0.55;
+      this.phase += dt * (4.8 + Math.min(3, speed * 1.5)) * hurry;
+      const bobAmp = 0.035 + storm * 0.02;
+      this.mesh.position.y = Math.abs(Math.sin(this.phase)) * bobAmp;
+      // Body roll into the stride plus a speed-scaled forward hunch.
+      this.mesh.rotation.z = Math.sin(this.phase) * (0.022 + storm * 0.012);
+      this.mesh.rotation.x = 0.03 + Math.min(0.05, speed * 0.022) + storm * 0.12 + this.lean;
+      // Shopping bag swings a touch livelier.
+      this.mesh.position.x = Math.sin(this.phase * 0.5) * 0.008;
+      this.mesh.rotation.y += (0 - this.mesh.rotation.y) * Math.min(1, dt * 5);
     } else {
-      this.mesh.position.y = Math.sin(elapsed * 1.3 + this.phase) * 0.006;
+      // Idle: breathing, weight shift and a slow look-around.
+      this.mesh.position.y = Math.sin(elapsed * 1.3 + this.phase) * (0.006 + storm * 0.002);
+      this.mesh.position.x = Math.sin(elapsed * 0.9 + this.phase * 1.7) * 0.016;
       this.mesh.rotation.z += (0 - this.mesh.rotation.z) * Math.min(1, dt * 4);
-      this.mesh.rotation.x += (this.lean - this.mesh.rotation.x) * Math.min(1, dt * 4);
+      this.mesh.rotation.x += (this.lean + storm * 0.14 - this.mesh.rotation.x) * Math.min(1, dt * 4);
+      this.mesh.rotation.y = Math.sin(elapsed * 0.45 + this.phase) * 0.3 * idle;
+    }
+    // Browsers reach toward the goods — a small forward pulse on top of the lean.
+    if (browse > 0.05) {
+      this.mesh.position.z = Math.abs(Math.sin(elapsed * 2.6 + this.phase)) * 0.045 * browse;
+    } else {
+      this.mesh.position.z += (0 - this.mesh.position.z) * Math.min(1, dt * 6);
+    }
+    // Storm crouch — shoppers hunch low against the wind.
+    const crouch = 1 - storm * 0.16;
+    this.mesh.scale.y += (crouch - this.mesh.scale.y) * Math.min(1, dt * 3);
+    // Umbrella leans into the gusts.
+    if (this.umbrellaGroup.visible) {
+      this.umbrellaGroup.rotation.z = storm * (0.38 + Math.sin(elapsed * 6.5 + this.phase) * 0.07);
+      this.umbrellaGroup.rotation.x = storm * 0.1;
+    } else {
+      this.umbrellaGroup.rotation.z *= 0.9;
+      this.umbrellaGroup.rotation.x *= 0.9;
     }
   }
 

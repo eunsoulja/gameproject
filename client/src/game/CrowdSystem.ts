@@ -78,6 +78,11 @@ export class CrowdSystem {
     }
   }
 
+  /** 0 = dry, ~0.5 = rain, 1 = typhoon — drives hunch, shuffle and umbrella tilt. */
+  setStorm(level: number): void {
+    for (const customer of this.customers) customer.avatar.setStorm(level);
+  }
+
   setAtmosphere(progress: number, eventVisual: EventVisual, quality: QualitySetting): void {
     this.progress = progress;
     this.eventVisual = eventVisual;

@@ -901,6 +901,7 @@ export class Game {
           ? 0.6
           : 0;
     this.rain?.setIntensity(rainIntensity);
+    this.crowd.setStorm(this.weather.isStorm ? 1 : this.weather.isRainy ? 0.45 : 0);
     this.rain?.update(dt, this.viewCamera.position);
     this.jeepneys?.setVisible(this.activeEvent?.type !== 'jeepneyStrike');
     this.jeepneys?.update(dt);
