@@ -492,38 +492,33 @@ export class PlotManager {
 
   private addPad(base: StallBase, branch: UpgradeBranch, color: string, center: THREE.Vector3, padGlow: THREE.Mesh[]): void {
     const def = UPGRADE_TREE[branch];
+    // Sticker-button pad: ink base rim, cream medallion face, branch-color core.
     const baseMat = new THREE.MeshStandardMaterial({
-      color: '#171b21',
-      roughness: 0.55,
-      metalness: 0.35,
-      emissive: new THREE.Color(color).multiplyScalar(0.08),
+      color: '#241a12',
+      roughness: 0.7,
+      metalness: 0.05,
     });
-    const topMat = new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, opacity: 0.82 });
-    const padBase = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.86, 0.09, 8), baseMat);
-    padBase.position.set(center.x, 0.045, center.z);
+    const padBase = new THREE.Mesh(new THREE.CylinderGeometry(0.88, 0.94, 0.1, 8), baseMat);
+    padBase.position.set(center.x, 0.05, center.z);
     padBase.receiveShadow = false;
     base.group.add(padBase);
 
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.68, 0.025, 8), topMat);
-    top.position.set(center.x, 0.102, center.z);
+    const topMat = new THREE.MeshBasicMaterial({
+      map: this.makePadTopTexture(def.name, color),
+      transparent: true,
+      toneMapped: false,
+    });
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.05, 8), topMat);
+    top.position.set(center.x, 0.125, center.z);
     base.group.add(top);
     padGlow.push(top);
 
-    // Thin halo ring and four corner posts of light.
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.74, 0.82, 16),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4, side: THREE.DoubleSide, toneMapped: false }),
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(center.x, 0.108, center.z);
-    base.group.add(ring);
-
-    // Radar-sweep ring spinning around the pad edge.
+    // Glossy shine sweep orbiting the rim — a cartoon highlight pass.
     const spinner = new THREE.Group();
-    spinner.position.set(center.x, 0.115, center.z);
+    spinner.position.set(center.x, 0.16, center.z);
     const sweep = new THREE.Mesh(
-      new THREE.RingGeometry(0.88, 0.97, 28, 1, 0, Math.PI * 1.55),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, toneMapped: false }),
+      new THREE.RingGeometry(0.86, 0.97, 28, 1, 0, Math.PI * 1.55),
+      new THREE.MeshBasicMaterial({ color: '#fff8e4', transparent: true, opacity: 0.5, side: THREE.DoubleSide, toneMapped: false }),
     );
     sweep.rotation.x = -Math.PI / 2;
     spinner.add(sweep);
@@ -531,27 +526,27 @@ export class PlotManager {
     const spinners = (base.group.userData.padSpinners ??= []) as THREE.Group[];
     spinners.push(spinner);
 
-    // Branch name laid flat on the pad.
-    const labelTexture = makeLabelTexture(def.name, '#fff3d8', 'rgba(12,15,20,0)');
-    const labelMat = new THREE.MeshBasicMaterial({ map: labelTexture, transparent: true, toneMapped: false, depthWrite: false });
-    const label = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.38), labelMat);
-    label.rotation.x = -Math.PI / 2;
-    label.rotation.z = base.side > 0 ? Math.PI / 2 : -Math.PI / 2;
-    label.position.set(center.x, 0.112, center.z);
-    label.renderOrder = 2;
-    base.group.add(label);
-
-    // A small upright chevron makes the pads readable from down the street.
-    const chevronMat = new THREE.MeshBasicMaterial({ color, toneMapped: false });
-    const chevron = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 4), chevronMat);
-    chevron.position.set(center.x, 0.34, center.z);
-    chevron.rotation.y = Math.PI / 4;
-    base.group.add(chevron);
-    base.structural.push(box(0.36, 0.04, 0.08, '#0b0e13', {
-      x: center.x,
-      y: 0.11,
-      z: center.z - base.inward * 0.55,
-    }));
+    // Two little stars orbiting the pad — pure cartoon sparkle.
+    const starTexture = this.makeStarTexture();
+    const stars: Array<{ sprite: THREE.Sprite; cx: number; cz: number; radius: number; speed: number; phase: number; y: number }> =
+      (base.group.userData.padStars ??= []);
+    for (let i = 0; i < 2; i++) {
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: starTexture, transparent: true, depthWrite: false }),
+      );
+      sprite.scale.set(0.3, 0.3, 1);
+      sprite.renderOrder = 3;
+      base.group.add(sprite);
+      stars.push({
+        sprite,
+        cx: center.x,
+        cz: center.z,
+        radius: 1.05 + i * 0.22,
+        speed: (i === 0 ? 1 : -0.8) * (0.9 + this.rng() * 0.4),
+        phase: this.rng() * Math.PI * 2,
+        y: 0.55 + i * 0.3,
+      });
+    }
 
     // Floating branch chip — the pad's name readable from across the market.
     const chip = this.makePadChip(def.name, color);
@@ -559,6 +554,108 @@ export class PlotManager {
     base.group.add(chip);
     const padIcons = (base.group.userData.padIcons ??= []) as Array<{ sprite: THREE.Sprite; phase: number }>;
     padIcons.push({ sprite: chip, phase: this.rng() * Math.PI * 2 });
+  }
+
+  /** Cartoon medallion for the pad face — cream sticker, ink outline, branch color, stitched ring. */
+  private makePadTopTexture(name: string, color: string): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+    const cx = 128;
+    const cy = 128;
+
+    // Cream sticker face.
+    ctx.fillStyle = '#fff3d6';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 126, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Branch-color core.
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 100, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ink rings: outer sticker border, inner core edge, dashed stitch ring.
+    ctx.strokeStyle = '#1c1008';
+    ctx.lineWidth = 11;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 119, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 93, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(28,16,8,0.5)';
+    ctx.lineWidth = 5;
+    ctx.setLineDash([11, 9]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 106, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Branch name in bold cartoon lettering with an ink outline.
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let fontSize = 36;
+    const label = name.toUpperCase();
+    ctx.font = `700 ${fontSize}px "Lilita One", "Arial Black", sans-serif`;
+    while (ctx.measureText(label).width > 168 && fontSize > 18) {
+      fontSize -= 2;
+      ctx.font = `700 ${fontSize}px "Lilita One", "Arial Black", sans-serif`;
+    }
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = '#1c1008';
+    ctx.strokeText(label, cx, cy + 2);
+    ctx.fillStyle = '#fff3d6';
+    ctx.fillText(label, cx, cy + 2);
+
+    // Corner sparkles.
+    ctx.fillStyle = '#fff3d6';
+    for (const [sx, sy, r] of [
+      [34, 40, 7],
+      [222, 44, 5],
+      [40, 216, 5],
+      [220, 212, 7],
+    ] as const) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    return texture;
+  }
+
+  private makeStarTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    ctx.translate(32, 32);
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? 26 : 11;
+      const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#fff3d6';
+    ctx.fill();
+    ctx.strokeStyle = '#1c1008';
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
   }
 
   private makePadChip(name: string, color: string): THREE.Sprite {
@@ -1060,10 +1157,29 @@ export class PlotManager {
     for (const view of this.views) {
       for (let i = 0; i < view.padGlow.length; i++) {
         const material = view.padGlow[i].material as THREE.MeshBasicMaterial;
-        if (material) material.opacity = 0.68 + 0.22 * Math.sin(elapsed * 2.4 + i * 1.4);
+        if (material) material.opacity = 0.88 + 0.12 * Math.sin(elapsed * 2.4 + i * 1.4);
       }
       const spinners = view.group?.userData.padSpinners as THREE.Group[] | undefined;
       if (spinners) for (const spinner of spinners) spinner.rotation.y += dt * 1.4;
+      const padStars = view.group?.userData.padStars as Array<{
+        sprite: THREE.Sprite;
+        cx: number;
+        cz: number;
+        radius: number;
+        speed: number;
+        phase: number;
+        y: number;
+      }> | undefined;
+      if (padStars) {
+        for (const star of padStars) {
+          const a = elapsed * star.speed + star.phase;
+          star.sprite.position.set(
+            star.cx + Math.cos(a) * star.radius,
+            star.y + Math.sin(elapsed * 2.2 + star.phase) * 0.08,
+            star.cz + Math.sin(a) * star.radius,
+          );
+        }
+      }
       const padIcons = view.group?.userData.padIcons as Array<{ sprite: THREE.Sprite; phase: number }> | undefined;
       if (padIcons) {
         for (const entry of padIcons) {
