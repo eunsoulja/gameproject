@@ -255,7 +255,10 @@ input::placeholder { color: #7d6a4c; }
   border-radius: 10px;
   background: #1a0f06;
 }
-.badge.earned .badge-icon { background: var(--paper); }
+.badge.earned .badge-icon { background: var(--paper); color: var(--ink); }
+.badge.earned b { color: var(--ink); }
+.badge.earned small { color: #5a3a12; }
+.badge b { font-weight: 800; }
 
 .product-row,
 .suki-row,
@@ -341,6 +344,29 @@ input::placeholder { color: #7d6a4c; }
 .hud-hint { border-radius: 999px; }
 .powerup-strip { border-radius: 16px; }
 .active-powerup { border: 2px solid var(--ink); border-radius: 10px; background: #2c1b0d; }
+
+.upgrade-btn {
+  border: 2px solid var(--ink-soft);
+  border-radius: 12px;
+  background: #2c1b0d;
+  box-shadow: 2px 2px 0 rgba(8, 3, 1, 0.6);
+  transition: transform 0.12s, border-color 0.16s, box-shadow 0.12s;
+}
+.upgrade-btn:hover {
+  border-color: var(--amber);
+  background: #33200f;
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0 rgba(8, 3, 1, 0.65);
+}
+.upgrade-btn:active { transform: translateY(1px); box-shadow: 1px 1px 0 rgba(8, 3, 1, 0.65); }
+.upgrade-thumb {
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  background: #1a0f06;
+}
+.upgrade-boosts {
+  border-top: 2px dashed rgba(255, 176, 46, 0.3);
+}
 
 .panel-icon {
   border: 2px solid var(--ink);
