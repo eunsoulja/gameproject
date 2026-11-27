@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WORLD } from '../../../shared/layout';
+import { WORLD, zoneCategoryAt } from '../../../shared/layout';
 import type { StallCategory } from '../../../shared/config';
 import type { CollisionSystem } from './CollisionSystem';
 import {
@@ -192,9 +192,7 @@ export class MarketGenerator {
 
   private buildStall(spot: StallSpot): void {
     const { side, z, depthRow } = spot;
-    const category: StallCategory =
-      spot.category ??
-      pick(this.rng, ['fruit', 'streetFood', 'driedFish', 'ukay'] as StallCategory[]);
+    const category: StallCategory = spot.category ?? zoneCategoryAt(z, this.rng);
     const [primary, secondary] = pick(this.rng, CANOPY_COLORS);
     const frontX = depthRow === 0 ? 9.9 : depthRow === 1 ? 14.1 : 18.8;
     const depth = depthRow === 0 ? range(this.rng, 2.8, 3.3) : range(this.rng, 2.1, 2.7);

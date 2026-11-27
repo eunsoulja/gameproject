@@ -76,3 +76,93 @@ export const CATEGORY_WORLD_LABEL: Record<StallCategory, string> = {
 
 /** Pedestrian route spine used by NPCs, expressed as z coordinate lanes. */
 export const PEDESTRIAN_LANES = [-5.5, -2.5, 0.5, 3.2, 6.2, -13.4, 13.4];
+
+// ── District zoning ─────────────────────────────────────────────────────────
+// The market is a real district: named zones along the street, each with its
+// own character, stall mix and crowd density. Zones tile playableMinZ..maxZ.
+
+export type DistrictTheme = 'ukay' | 'pasalubong' | 'plaza' | 'food' | 'drag' | 'night';
+
+export interface DistrictZone {
+  id: string;
+  name: string;
+  zMin: number;
+  zMax: number;
+  theme: DistrictTheme;
+  /** Relative foot-traffic expectation — guides NPC density and stall mix. */
+  crowd: number;
+  /** Stall categories this zone favors, in rough priority order. */
+  favors: StallCategory[];
+}
+
+export const DISTRICTS: DistrictZone[] = [
+  {
+    id: 'ukay',
+    name: 'Ukay Alley',
+    zMin: -232,
+    zMax: -176,
+    theme: 'ukay',
+    crowd: 0.45,
+    favors: ['ukay', 'ukay', 'streetFood', 'driedFish'],
+  },
+  {
+    id: 'pasalubong',
+    name: 'Pasalubong Row',
+    zMin: -170,
+    zMax: -76,
+    theme: 'pasalubong',
+    crowd: 0.7,
+    favors: ['fruit', 'driedFish', 'streetFood', 'ukay'],
+  },
+  {
+    id: 'plaza',
+    name: 'Plaza del Mercado',
+    zMin: -70,
+    zMax: 16,
+    theme: 'plaza',
+    crowd: 1.0,
+    favors: ['streetFood', 'fruit', 'streetFood', 'ukay'],
+  },
+  {
+    id: 'food',
+    name: 'Pares District',
+    zMin: 22,
+    zMax: 92,
+    theme: 'food',
+    crowd: 0.85,
+    favors: ['streetFood', 'streetFood', 'fruit', 'driedFish'],
+  },
+  {
+    id: 'drag',
+    name: 'Colon Drag',
+    zMin: 98,
+    zMax: 168,
+    theme: 'drag',
+    crowd: 0.9,
+    favors: ['fruit', 'driedFish', 'streetFood', 'ukay'],
+  },
+  {
+    id: 'night',
+    name: 'Night Market Row',
+    zMin: 174,
+    zMax: 232,
+    theme: 'night',
+    crowd: 0.6,
+    favors: ['streetFood', 'ukay', 'driedFish', 'fruit'],
+  },
+];
+
+export function districtAt(z: number): DistrictZone {
+  for (const zone of DISTRICTS) {
+    if (z >= zone.zMin && z <= zone.zMax) return zone;
+  }
+  return DISTRICTS[DISTRICTS.length - 1];
+}
+
+/** Category a stall at this z should probably sell — weighted by zone favors. */
+export function zoneCategoryAt(z: number, rng: () => number): StallCategory {
+  const favors = districtAt(z).favors;
+  const roll = rng();
+  if (roll < 0.62) return favors[Math.floor(rng() * Math.min(2, favors.length))];
+  return favors[Math.floor(rng() * favors.length)];
+}
