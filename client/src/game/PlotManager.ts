@@ -428,6 +428,35 @@ export class PlotManager {
     base.group.add(light);
     base.group.userData.light = light;
 
+    // Multi-stall vendors get a visibly bigger footprint: a second bulb
+    // string, an "EXPANDED" banner and extra gold trim along the back.
+    if (profile.stallCount >= 2) {
+      for (let i = 0; i < 7; i++) {
+        glow.push(sphere(0.06, '#ffe9a8', {
+          x: front - inward * 0.5,
+          y: base.canopyY - 0.22,
+          z: slot.z - width / 2 + 0.4 + i * ((width - 0.8) / 6),
+        }, 6));
+      }
+      fabric.push(box(0.34, 0.05, width * 0.7, '#e8b04b', {
+        x: front - inward * 0.18,
+        y: base.canopyY + 0.2,
+        z: slot.z,
+      }));
+      // Second mini name board on the far end for the extra stall.
+      this.addSignTexture(
+        this.groupFor(base),
+        `STALL ${profile.stallCount}`,
+        'expanded bay',
+        '#ffd481',
+        front - inward * 0.26,
+        2.3,
+        slot.z + width * 0.34,
+        side,
+        1.7,
+      );
+    }
+
     // Floating diamond marker.
     const markerMaterial = new THREE.MeshBasicMaterial({
       color: '#ffd15c',
