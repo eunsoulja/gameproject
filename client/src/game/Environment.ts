@@ -57,10 +57,18 @@ export class Environment {
   private lightning = 0;
   private elapsed = 0;
   private puddles: THREE.Mesh[] = [];
+  private roadMaterial: THREE.MeshStandardMaterial | null = null;
+  private wetTarget = 0;
+  private wetness = 0;
   private archLights: THREE.Sprite[] = [];
   private eventVisual: EventVisual = 'none';
   /** Parol lights go up in December. */
   private festive = new Date().getMonth() === 11;
+
+  /** Actual rainfall wets the street — separate from market rain events. */
+  setWetness(level: number): void {
+    this.wetTarget = level;
+  }
 
   /** Market-calendar seasons (fiesta week / parol season) drive the lamp colors. */
   setFestive(on: boolean): void {
@@ -187,16 +195,18 @@ export class Environment {
 
   private buildGround(): void {
     const asphalt = makeAsphaltTexture(71);
+    const roadMaterial = new THREE.MeshStandardMaterial({
+      map: asphalt,
+      color: '#9b958b',
+      roughness: 0.88,
+      metalness: 0.06,
+      emissive: new THREE.Color('#100c08'),
+      emissiveIntensity: 0.55,
+    });
+    this.roadMaterial = roadMaterial;
     const road = new THREE.Mesh(
       new THREE.PlaneGeometry(ROAD_HALF * 2, STREET_LENGTH, 1, 1),
-      new THREE.MeshStandardMaterial({
-        map: asphalt,
-        color: '#9b958b',
-        roughness: 0.88,
-        metalness: 0.06,
-        emissive: new THREE.Color('#100c08'),
-        emissiveIntensity: 0.55,
-      }),
+      roadMaterial,
     );
     road.rotation.x = -Math.PI / 2;
     road.receiveShadow = true;
@@ -738,11 +748,20 @@ export class Environment {
     this.lights.sun.intensity += flash * 0.8;
     if (flash > 0.01) this.lights.hemi.color.lerp(new THREE.Color('#cfe0ff'), flash * 0.7);
     for (const entry of this.pointLights) entry.light.intensity = entry.base * dim * (0.65 + night * 0.5) * (1 + flash * 0.6);
-    const wet = this.eventVisual === 'rain' || this.eventVisual === 'flood' ? 1 : 0;
+    this.wetness += (this.wetTarget - this.wetness) * 0.03;
+    const wet = Math.max(
+      this.eventVisual === 'rain' || this.eventVisual === 'flood' ? 1 : 0,
+      this.wetness,
+    );
+    // The road darkens and turns glossy as the rain soaks in.
+    if (this.roadMaterial) {
+      this.roadMaterial.color.set('#9b958b').lerp(new THREE.Color('#5d5a55'), wet * 0.55);
+      this.roadMaterial.roughness = 0.88 - wet * 0.38;
+    }
     for (let i = 0; i < this.puddles.length; i++) {
       const puddle = this.puddles[i];
       const material = puddle.material as THREE.MeshPhysicalMaterial;
-      material.opacity = (daylight > 0.45 ? 0.28 : 0.75) + wet * 0.12;
+      material.opacity = (daylight > 0.45 ? 0.28 : 0.75) + wet * 0.15;
       // Rain rings: puddles breathe and shimmer while the sky pours.
       const ripple = wet * (0.06 + 0.05 * Math.sin(this.elapsed * 2.6 + i * 1.9));
       puddle.scale.set(1 + ripple, 1, 1 - ripple * 0.6);
