@@ -12,6 +12,7 @@ import {
   makeGlowTexture,
   makeLabelTexture,
   pick,
+  plane,
   range,
   sphere,
   type Random,
@@ -73,6 +74,9 @@ export class MarketGenerator {
   private glowTexture: THREE.Texture;
   private lights: THREE.Sprite[] = [];
   private built = false;
+  /** Swaying laundry cloth — individual meshes so they can flutter. */
+  private laundry: Array<{ mesh: THREE.Mesh; phase: number }> = [];
+  private laundryMat: THREE.Material | null = null;
   /** Keeper posts behind row-0 stalls — CrowdSystem mans these with vendors. */
   public readonly vendorSpots: Array<{ x: number; z: number; yaw: number }> = [];
 
@@ -98,6 +102,7 @@ export class MarketGenerator {
     this.buildCarts();
     this.buildStreetClutter();
     this.buildAlleyDetails();
+    this.buildLaundry();
 
     addMergedMesh(this.scene, this.structural, MATERIALS.structure(), 'market-structure');
     addMergedMesh(this.scene, this.fabric, MATERIALS.fabric(), 'market-canopies');
@@ -121,6 +126,11 @@ export class MarketGenerator {
       if (!material) continue;
       const dim = i % 9 === 0 && Math.sin(elapsed * 13 + i) > 0.92 ? 0.35 : 1;
       material.opacity = dim;
+    }
+    // Laundry flutters in the evening breeze.
+    for (const item of this.laundry) {
+      item.mesh.rotation.x = Math.sin(elapsed * 1.4 + item.phase) * 0.22;
+      item.mesh.rotation.z = Math.sin(elapsed * 0.9 + item.phase * 1.7) * 0.07;
     }
   }
 
@@ -868,6 +878,36 @@ export class MarketGenerator {
         const x = -10 + t * 20;
         const sag = Math.sin(t * Math.PI) * 1.2;
         this.glow.push(sphere(0.055, '#ffd693', { x, y: 4.4 - sag, z }, 5));
+      }
+    }
+  }
+
+  /** Clotheslines strung curb-to-curb — cloth pieces sway on their own meshes. */
+  private buildLaundry(): void {
+    if (this.quality === 'low') return;
+    this.laundryMat = MATERIALS.fabric();
+    const clothColors = ['#efe8d6', '#d96a5f', '#7fa8c9', '#e3b34c', '#9cc48a', '#c9a0d0'];
+    for (let i = 0; i < 8; i++) {
+      const z = range(this.rng, WORLD.playableMinZ + 14, WORLD.playableMaxZ - 14);
+      if (this.nearSideStreet(z, 4)) continue;
+      if (z > -30 && z < 96) continue; // keep the player bays clear
+      const y = range(this.rng, 3.0, 3.5);
+      for (const s of [-1, 1] as Array<-1 | 1>) {
+        this.metal.push(cylinder(0.05, 0.06, y, 6, '#4a3d2c', { x: s * 9.4, y: y / 2, z }));
+      }
+      // The line itself — straight span, slight sag suggested by two segments.
+      this.metal.push(box(18.9, 0.025, 0.025, '#c9bfa8', { x: 0, y, z }));
+      for (let c = 0; c < 4; c++) {
+        const cx = -7 + c * 4.6 + range(this.rng, -0.5, 0.5);
+        const w = range(this.rng, 0.6, 0.9);
+        const h = range(this.rng, 0.8, 1.1);
+        const g = plane(w, h, pick(this.rng, clothColors), {});
+        g.rotateY(Math.PI / 2);
+        g.translate(0, -h / 2, 0); // pivot at the top edge so it swings like a pendulum
+        const mesh = new THREE.Mesh(g, this.laundryMat);
+        mesh.position.set(cx, y - 0.12, z);
+        this.scene.add(mesh);
+        this.laundry.push({ mesh, phase: this.rng() * Math.PI * 2 });
       }
     }
   }
