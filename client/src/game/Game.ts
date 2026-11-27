@@ -116,6 +116,7 @@ export class Game {
   private npcTalkPos = new THREE.Vector3();
   private npcTalkTarget: Customer | null = null;
   private sukiToasted = new Set<string>();
+  private mumbleTimer = 3;
   private npcTalkItem: Interactable | null = null;
   private lastNpcTalk = -10;
   private karenOrders: KarenderoOrderInfo[] = [];
@@ -1529,6 +1530,14 @@ export class Game {
       if (this.player) {
         const own = this.plots.find((p) => p.ownerId === this.profile?.id)?.index ?? 0;
         this.hud.drawMinimap(this.player.position.x, this.player.position.z, this.player.yaw, own);
+      }
+      // Ambient chatter murmur when shoppers are gossiping nearby.
+      this.mumbleTimer -= 0.6;
+      if (this.mumbleTimer <= 0 && this.player && this.crowd.hasChatNear(this.player.position.x, this.player.position.z, 14)) {
+        this.mumbleTimer = 2 + Math.random() * 4;
+        this.audio.mumble();
+      } else if (this.mumbleTimer <= 0) {
+        this.mumbleTimer = 4;
       }
     }
     this.market.update(dt, this.elapsed);

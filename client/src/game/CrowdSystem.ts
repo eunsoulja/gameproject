@@ -880,6 +880,17 @@ export class CrowdSystem {
     return this.customers.filter((c) => c.active && c.state === 'queue').length;
   }
 
+  /** Any shopper chatting/greeting within radius of a point — drives ambient mumble. */
+  hasChatNear(x: number, z: number, radius: number): boolean {
+    const r2 = radius * radius;
+    for (const c of this.customers) {
+      if (!c.active || (c.state !== 'chat' && c.state !== 'greet')) continue;
+      const dx = c.x - x, dz = c.z - z;
+      if (dx * dx + dz * dz < r2) return true;
+    }
+    return false;
+  }
+
   /** Order taken — the customer leaves the line and waits for their plate. */
   startOrderFlow(customer: Customer, dishId: string, dishName: string): void {
     customer.orderDish = dishId;

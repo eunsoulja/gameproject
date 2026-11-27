@@ -307,6 +307,14 @@ export class AudioManager {
     osc.stop(time + duration + 0.02);
   }
 
+  /** Distant marketplace murmur — a short band-passed breath of noise. */
+  mumble(): void {
+    if (!this.context) return;
+    const now = this.context.currentTime;
+    const f = 500 + Math.random() * 700;
+    this.noiseBurst(now, 0.16 + Math.random() * 0.12, f, 0.016 + Math.random() * 0.01, 0);
+  }
+
   private noiseBurst(time: number, duration: number, filterFreq: number, volume: number, filterType: number): void {
     if (!this.context || !this.noise || !this.effectsBus) return;
     const source = this.context.createBufferSource();
