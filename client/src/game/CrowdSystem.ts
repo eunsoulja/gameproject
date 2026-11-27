@@ -76,6 +76,12 @@ const PLAYER_LINES = [
   'Salamat sa pag-join!', 'Uy, ang galing mo, angas!',
   'Hoy brader! Masarap dito, di ba?', 'Kumusta sa tindahan!',
 ];
+// Typhoon mutterings — everyone makes a run for the awnings.
+const STORM_LINES = [
+  'Ambon! Tara sa sakop!', 'Bilis, ang lakas ng hangin!',
+  'Itulak mo yung poste!', 'Sandali lang, tatakbo ako!',
+  'Grabe ang bagyo!', 'Sa may tarpaulin na tayo!',
+];
 // Closing-time chatter in the final stretch of the night.
 const LAST_CALL_LINES = [
   'Last call na! Kain pa tayo!', 'Sige na, bibilis na ang pila!',
@@ -128,6 +134,7 @@ export class CrowdSystem {
   private hasPlayer = false;
   private playerEmoting = false;
   private vendorSpots: Array<{ x: number; z: number; yaw: number }> = [];
+  private stormLevel = 0;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -177,6 +184,7 @@ export class CrowdSystem {
 
   /** 0 = dry, ~0.5 = rain, 1 = typhoon — drives hunch, shuffle and umbrella tilt. */
   setStorm(level: number): void {
+    this.stormLevel = level;
     for (const customer of this.customers) customer.avatar.setStorm(level);
   }
 
@@ -449,7 +457,9 @@ export class CrowdSystem {
       const dx = customer.targetX - customer.x;
       const dz = customer.targetZ - customer.z;
       const distance = Math.hypot(dx, dz);
-      const targetSpeed = customer.speed > 0.1 ? customer.speed : range(this.rng, 1.15, 1.75);
+      const targetSpeed =
+        (customer.speed > 0.1 ? customer.speed : range(this.rng, 1.15, 1.75)) *
+        (1 + this.stormLevel * 0.4);
       if (distance < 0.42) {
         customer.state = 'browse';
         customer.timer =
@@ -637,6 +647,14 @@ export class CrowdSystem {
       this.rng() < queueChance &&
       this.tryJoinQueue(customer)
     ) {
+      return;
+    }
+    // Typhoon — shoppers abandon the open street for the awnings.
+    if (this.stormLevel >= 0.7 && this.rng() < 0.65) {
+      const side = this.rng() > 0.5 ? 1 : -1;
+      customer.targetX = side * range(this.rng, 7.4, 8.8);
+      customer.targetZ = this.pickCrowdZ();
+      if (this.rng() < 0.4) customer.avatar.say(pick(this.rng, STORM_LINES), 2.2);
       return;
     }
     // Rest stop — plaza benches invite a spell of people-watching.
