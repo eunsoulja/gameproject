@@ -21,6 +21,7 @@ export class CrowdAvatar {
   private bubbleCtx: CanvasRenderingContext2D | null = null;
   private bubbleTex: THREE.CanvasTexture | null = null;
   private bubbleLife = 0;
+  private badge: THREE.Sprite | null = null;
   private cheer = 0;
   private prevYaw = 0;
   private turnRate = 0;
@@ -202,6 +203,38 @@ export class CrowdAvatar {
     this.cheer = 1;
   }
 
+  /** Gold star over a suki regular's head — they keep coming back. */
+  setSukiBadge(on: boolean): void {
+    if (!on) {
+      if (this.badge) this.badge.visible = false;
+      return;
+    }
+    if (!this.badge) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d')!;
+      ctx.font = '46px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = '#7a4a00';
+      ctx.strokeText('★', 32, 34);
+      ctx.fillStyle = '#ffd34d';
+      ctx.fillText('★', 32, 34);
+      const tex = new THREE.CanvasTexture(canvas);
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
+      );
+      sprite.scale.set(0.42, 0.42, 1);
+      sprite.position.set(0, 2.2, 0);
+      sprite.renderOrder = 6;
+      this.root.add(sprite);
+      this.badge = sprite;
+    }
+    this.badge.visible = true;
+  }
+
   /** Seated pose — haunches down onto a bench, leans back slightly. */
   setSit(on: boolean): void {
     this.sitTarget = on ? 1 : 0;
@@ -217,6 +250,9 @@ export class CrowdAvatar {
     this.cheer += (0 - this.cheer) * Math.min(1, dt * 1.6);
     this.sit += (this.sitTarget - this.sit) * Math.min(1, dt * 4);
     if (this.bubbleLife > 0) this.bubbleLife -= dt;
+    if (this.badge?.visible) {
+      this.badge.position.y = 2.2 + Math.sin(elapsed * 2.2 + this.phase) * 0.045;
+    }
     const storm = this.storm;
     const idle = speed <= 0.08 ? 1 : 0;
     const browse = Math.min(1, this.lean / 0.12);
@@ -315,6 +351,10 @@ export class CrowdAvatar {
     if (this.bubble) {
       (this.bubble.material as THREE.SpriteMaterial).dispose();
       this.bubbleTex?.dispose();
+    }
+    if (this.badge) {
+      (this.badge.material as THREE.SpriteMaterial).map?.dispose();
+      (this.badge.material as THREE.SpriteMaterial).dispose();
     }
     this.umbrellaGroup.traverse((child) => {
       const mesh = child as THREE.Mesh;

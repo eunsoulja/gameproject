@@ -207,6 +207,9 @@ export class CrowdSystem {
     const isKid = index % 11 === 4;
     // And one in thirteen is an elder — slower, a little more stooped.
     const isElder = !isKid && index % 13 === 7;
+    // Suki regulars — they keep coming back, and wear a star to prove it.
+    const isSuki = index % 13 === 2;
+    avatar.setSukiBadge(isSuki);
     if (isKid) {
       avatar.root.scale.multiplyScalar(0.58);
       avatar.setKid(true);
@@ -246,7 +249,7 @@ export class CrowdSystem {
       bob: index * 0.13,
       hasUmbrella: index % 5 < 2,
       role: isKid ? 'kid' : isElder ? 'elder' : index % 9 === 0 ? 'sleeper' : index % 7 === 0 ? 'linger' : 'walker',
-      suki: index % 13 === 2,
+      suki: isSuki,
     };
   }
 
