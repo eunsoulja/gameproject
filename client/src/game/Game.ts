@@ -123,6 +123,7 @@ export class Game {
   private heldDish: { dishId: string; dishName: string } | null = null;
   private queueDecals: THREE.Mesh[] = [];
   private queueDecalAnchor = '';
+  private lastColorblind = false;
   private karenServeNpc: Customer | null = null;
   private karenServePos = new THREE.Vector3();
   private karenOrderItem: Interactable | null = null;
@@ -942,26 +943,29 @@ export class Game {
 
   private decalTextures: Array<THREE.Texture | null> = [];
 
-  private queueNumberTexture(n: number): THREE.Texture {
-    if (this.decalTextures[n]) return this.decalTextures[n]!;
+  private queueNumberTexture(n: number, cb: boolean): THREE.Texture {
+    const key = `${n}|${cb ? 1 : 0}`;
+    const cached = this.decalTextures.find((t, i) => t && (t.userData.key === key));
+    if (cached) return cached;
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 96;
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, 96, 96);
-    ctx.fillStyle = 'rgba(20,16,10,0.55)';
+    ctx.fillStyle = cb ? '#ffd21f' : 'rgba(20,16,10,0.55)';
     ctx.beginPath();
     ctx.arc(48, 48, 40, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,225,170,0.85)';
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = cb ? '#0a2a8a' : 'rgba(255,225,170,0.85)';
+    ctx.lineWidth = cb ? 8 : 5;
     ctx.stroke();
-    ctx.fillStyle = '#ffe9c4';
+    ctx.fillStyle = cb ? '#0a2a8a' : '#ffe9c4';
     ctx.font = 'bold 52px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(n), 48, 51);
     const tex = new THREE.CanvasTexture(canvas);
-    this.decalTextures[n] = tex;
+    tex.userData.key = key;
+    this.decalTextures.push(tex);
     return tex;
   }
 
@@ -981,7 +985,7 @@ export class Game {
       const pos = this.crowd.queueSlotPos(i);
       const mesh = new THREE.Mesh(
         new THREE.PlaneGeometry(0.85, 0.85),
-        new THREE.MeshBasicMaterial({ map: this.queueNumberTexture(i + 1), transparent: true, depthWrite: false }),
+        new THREE.MeshBasicMaterial({ map: this.queueNumberTexture(i + 1, this.settings.current.colorblindSafe), transparent: true, depthWrite: false }),
       );
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(pos.x, 0.025, pos.z);
@@ -1387,6 +1391,11 @@ export class Game {
     this.crowd?.setNameTagsVisible(settings.showNames);
     this.crowd?.setQuality(settings.quality);
     this.weather.setEnabled(settings.weatherEffects);
+    if (settings.colorblindSafe !== this.lastColorblind) {
+      this.lastColorblind = settings.colorblindSafe;
+      this.clearQueueDecals();
+      this.queueDecalAnchor = '';
+    }
     if (this.plotManager && this.profile) {
       this.plotManager.setAwningColor(settings.awningColor);
       this.plotManager.setState(this.plots, this.profile.id, this.profile);

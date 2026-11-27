@@ -14,6 +14,7 @@ export interface GameSettings {
   cameraShake: boolean;
   showFps: boolean;
   awningColor: string;
+  colorblindSafe: boolean;
 }
 
 const STORAGE_KEY = 'merkado.settings.v1';
@@ -32,6 +33,7 @@ const DEFAULTS: GameSettings = {
   cameraShake: true,
   showFps: false,
   awningColor: '',
+  colorblindSafe: false,
 };
 
 /** Small persisted settings store shared by the renderer, audio and camera. */
@@ -97,6 +99,7 @@ export class SettingsManager {
         cameraShake: typeof parsed.cameraShake === 'boolean' ? parsed.cameraShake : DEFAULTS.cameraShake,
         showFps: typeof parsed.showFps === 'boolean' ? parsed.showFps : DEFAULTS.showFps,
         awningColor: typeof parsed.awningColor === 'string' ? parsed.awningColor : DEFAULTS.awningColor,
+        colorblindSafe: typeof parsed.colorblindSafe === 'boolean' ? parsed.colorblindSafe : DEFAULTS.colorblindSafe,
       };
     } catch {
       return { ...DEFAULTS };

@@ -58,6 +58,7 @@ export class SettingsMenu {
             ${this.toggle('Reduce motion', 'reduceMotion', settings.reduceMotion, 'Calmer camera and fewer visual effects')}
             ${this.toggle('Camera shake', 'cameraShake', settings.cameraShake, 'Impact thumps and landing shakes')}
             ${this.toggle('FPS counter', 'showFps', settings.showFps, 'Show frames per second in the corner')}
+            ${this.toggle('Colorblind-safe marks', 'colorblindSafe', settings.colorblindSafe, 'High-contrast queue and highlight colors')}
           </div>
 
           <div class="settings-group">
