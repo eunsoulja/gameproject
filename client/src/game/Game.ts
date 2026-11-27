@@ -1467,20 +1467,30 @@ export class Game {
           this.fpsEl.textContent = `${fps} fps · ${calls} draws`;
         }
       }
-      // Auto-quality: sustained low FPS steps the renderer down once.
+      // Auto-quality v2: shadows off first, then step quality down.
       this.fpsSamples.push(fps);
       if (this.fpsSamples.length > 10) this.fpsSamples.shift();
       if (!this.autoQualityDone && this.fpsSamples.length === 10) {
         const avg = this.fpsSamples.reduce((a, b) => a + b, 0) / this.fpsSamples.length;
         const q = this.settings.current.quality;
-        if (avg < 45 && q === 'high') {
+        if (avg < 45 && this.renderer?.shadowMap.enabled) {
+          this.renderer.shadowMap.enabled = false;
+          this.renderer.shadowMap.needsUpdate = true;
+          this.fpsSamples.length = 0;
+          this.notifications?.info('Performance', 'Shadows disabled to keep the market smooth.', 'info');
+        } else if (avg < 45 && q === 'high') {
           this.settings.set('quality', 'medium');
           this.notifications?.info('Performance', 'Quality lowered to medium to keep the market smooth.', 'info');
+          this.autoQualityDone = true;
         } else if (avg < 40 && q === 'medium') {
           this.settings.set('quality', 'low');
           this.notifications?.info('Performance', 'Quality lowered to low to keep the market smooth.', 'info');
+          this.autoQualityDone = true;
+        } else if (avg < 40 && q === 'high') {
+          this.settings.set('quality', 'low');
+          this.notifications?.info('Performance', 'Quality lowered to low to keep the market smooth.', 'info');
+          this.autoQualityDone = true;
         }
-        this.autoQualityDone = true;
       }
     }
     const resetCam = this.input.consumeResetCamera();
