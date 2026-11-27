@@ -18,6 +18,7 @@ export class Input {
   private fullscreenQueued = false;
   private resetCameraQueued = false;
   private namesQueued = false;
+  private spectateQueued = false;
   private emoteQueued: string | null = null;
   private anyInputQueued = false;
   private mobileMoveX = 0;
@@ -87,6 +88,7 @@ export class Input {
       if (event.code === 'KeyF') this.fullscreenQueued = true;
       if (event.code === 'KeyR') this.resetCameraQueued = true;
       if (event.code === 'KeyN') this.namesQueued = true;
+      if (event.code === 'KeyC') this.spectateQueued = true;
       this.anyInputQueued = true;
     };
     const onKeyUp = (event: KeyboardEvent): void => {
@@ -378,6 +380,12 @@ export class Input {
   consumeNames(): boolean {
     const value = this.namesQueued;
     this.namesQueued = false;
+    return value;
+  }
+
+  consumeSpectate(): boolean {
+    const value = this.spectateQueued;
+    this.spectateQueued = false;
     return value;
   }
 

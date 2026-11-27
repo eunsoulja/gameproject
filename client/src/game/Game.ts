@@ -159,6 +159,7 @@ export class Game {
   private profile: PlayerProfile | null = null;
   private profileReceivedAt = 0;
   private firstSaleTelemetrySent = false;
+  private spectateMode = false;
   private plots: PublicPlot[] = [];
   private activeEvent: ActiveEventState | null = null;
   private onlineCount = 0;
@@ -1501,6 +1502,11 @@ export class Game {
     }
     const resetCam = this.input.consumeResetCamera();
     const namesToggle = this.input.consumeNames();
+    if (this.input.consumeSpectate()) {
+      this.spectateMode = !this.spectateMode;
+      this.audio.click();
+      this.notifications?.info('Camera', this.spectateMode ? 'Spectate cam — orbiting your stall. Press C to exit.' : 'Back to vendor cam.', 'info');
+    }
     const hasProfile = !!this.profile && !!this.player;
     const progress = this.profile
       ? currentProgress(this.profile, this.profileReceivedAt)
@@ -1598,11 +1604,19 @@ export class Game {
           this.cameraRig.snap(this.player!.position, this.collision);
         }
       } else {
+        // Spectate cam (C): slow orbit around your own stall.
+        if (this.spectateMode) {
+          this.cameraRig.yaw = this.elapsed * 0.1;
+          this.cameraRig.pitch = 0.62;
+          this.cameraRig.distance = 14;
+        }
+        const ownStall = this.plotManager.getStallPoints().find((p) => p.isSelf);
+        const focus = this.spectateMode && ownStall ? ownStall.center : this.player!.position;
         this.cameraRig.update(
           dt,
-          this.player!.position,
+          focus,
           this.collision,
-          this.player!.speed,
+          this.spectateMode ? 0 : this.player!.speed,
           this.settings.current.reduceMotion,
         );
       }
