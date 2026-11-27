@@ -121,6 +121,8 @@ export class Game {
   private lastNpcTalk = -10;
   private karenOrders: KarenderoOrderInfo[] = [];
   private heldDish: { dishId: string; dishName: string } | null = null;
+  private queueDecals: THREE.Mesh[] = [];
+  private queueDecalAnchor = '';
   private karenServeNpc: Customer | null = null;
   private karenServePos = new THREE.Vector3();
   private karenOrderItem: Interactable | null = null;
@@ -938,6 +940,65 @@ export class Game {
     }
   }
 
+  private decalTextures: Array<THREE.Texture | null> = [];
+
+  private queueNumberTexture(n: number): THREE.Texture {
+    if (this.decalTextures[n]) return this.decalTextures[n]!;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 96;
+    const ctx = canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, 96, 96);
+    ctx.fillStyle = 'rgba(20,16,10,0.55)';
+    ctx.beginPath();
+    ctx.arc(48, 48, 40, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,225,170,0.85)';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.fillStyle = '#ffe9c4';
+    ctx.font = 'bold 52px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), 48, 51);
+    const tex = new THREE.CanvasTexture(canvas);
+    this.decalTextures[n] = tex;
+    return tex;
+  }
+
+  /** Paint 1–4 markers on the ground at the karendero queue slots. */
+  private updateQueueDecals(): void {
+    if (!this.ownPlotIsFood()) {
+      if (this.queueDecals.length) this.clearQueueDecals();
+      this.queueDecalAnchor = '';
+      return;
+    }
+    const front = this.crowd.queueSlotPos(0);
+    const anchor = `${front.x.toFixed(1)}|${front.z.toFixed(1)}`;
+    if (anchor === this.queueDecalAnchor) return;
+    this.clearQueueDecals();
+    this.queueDecalAnchor = anchor;
+    for (let i = 0; i < 4; i++) {
+      const pos = this.crowd.queueSlotPos(i);
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.85, 0.85),
+        new THREE.MeshBasicMaterial({ map: this.queueNumberTexture(i + 1), transparent: true, depthWrite: false }),
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(pos.x, 0.025, pos.z);
+      this.scene.add(mesh);
+      this.queueDecals.push(mesh);
+    }
+  }
+
+  private clearQueueDecals(): void {
+    for (const mesh of this.queueDecals) {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+    }
+    this.queueDecals = [];
+  }
+
   /** Keep karendero prompts, order timers and the serve target fresh. */
   private updateKarendero(): void {
     const now = Date.now();
@@ -947,6 +1008,8 @@ export class Game {
       localStorage.setItem('merkado.karenTut', '1');
       this.notifications?.info('Karendero rush!', 'Take the order → wait for the plate → serve the match. Tama na ang pila!');
     }
+    // Numbered floor markers show shoppers where to stand in line.
+    this.updateQueueDecals();
     // Drop orders that went cold; drop a held plate whose order vanished.
     this.karenOrders = this.karenOrders.filter((o) => o.expiresAt > now);
     if (

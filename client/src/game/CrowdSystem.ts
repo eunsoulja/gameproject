@@ -790,7 +790,7 @@ export class CrowdSystem {
 
   // --- Karendero queue -------------------------------------------------
 
-  private queueSlotPos(index: number): { x: number; z: number } {
+  queueSlotPos(index: number): { x: number; z: number } {
     return { x: this.ownX + this.ownInward * 3.35, z: this.ownZ + 1.4 + index * 1.75 };
   }
 
