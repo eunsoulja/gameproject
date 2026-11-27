@@ -88,6 +88,34 @@ interface Clock {
   progress: number;
 }
 
+/** One rotating night market twist, picked deterministically by market day. */
+const DAILY_CHALLENGES = [
+  {
+    id: 'premiumNight',
+    label: 'Premium night',
+    desc: 'Prices at or above guide earn +15% revenue tonight.',
+  },
+  {
+    id: 'earlyBird',
+    label: 'Early bird',
+    desc: 'Before midday, crowd traffic is +30%.',
+  },
+  {
+    id: 'sukiRush',
+    label: 'Suki rush',
+    desc: 'Tips are 50% bigger tonight — keep the regulars happy.',
+  },
+  {
+    id: 'bargainNight',
+    label: 'Bargain night',
+    desc: 'Customers haggle 15% less at your counter.',
+  },
+] as const;
+
+function dailyChallengeFor(day: number): (typeof DAILY_CHALLENGES)[number] {
+  return DAILY_CHALLENGES[Math.abs(day) % DAILY_CHALLENGES.length];
+}
+
 const ONLINE_POSITION_HZ = 8;
 const ECON_TICK_MS = 5000;
 const ANIM_STATES = new Set(['idle', 'walk', 'run', 'jump']);
@@ -579,7 +607,9 @@ export class GameService {
 
     // Some customers haggle — tawadShield regulars trust your price and skip it.
     const tawad = profile.powerUps.some((p) => p.id === 'tawadShield' && (p.endsAt === null || p.endsAt > now));
-    const haggleChance = tawad ? 0.04 : customer === 'tourist' ? 0.06 : customer === 'bargain' ? 0.45 : 0.3;
+    const haggleChance =
+      (tawad ? 0.04 : customer === 'tourist' ? 0.06 : customer === 'bargain' ? 0.45 : 0.3) -
+      (profile.dailyChallenge?.id === 'bargainNight' ? 0.15 : 0);
     const existing = this.haggles.get(profile.id);
     if (existing && existing.expiresAt > now) {
       return { ok: false, error: 'A customer is still deciding — answer them first.' };
@@ -678,8 +708,11 @@ export class GameService {
     profile.inventory[product.id] -= quantity;
     // Tourists tip generously; bargain hunters rarely do.
     const tipChance = customer === 'tourist' ? 0.55 : customer === 'bargain' ? 0.12 : 0.3;
+    const sukiRush = profile.dailyChallenge?.id === 'sukiRush';
     const tip =
-      Math.random() < tipChance ? Math.round(priceTotal * (0.1 + Math.random() * 0.25)) : 0;
+      Math.random() < tipChance
+        ? Math.round(priceTotal * (0.1 + Math.random() * 0.25) * (sukiRush ? 1.5 : 1))
+        : 0;
     const total = priceTotal + tip;
 
     profile.balance += total;
@@ -1112,6 +1145,15 @@ export class GameService {
       syncExpiredPowerUps(profile, now);
       profile.dayProgress = this.clock.progress;
       profile.activeEvent = this.activeEvent;
+      if (profile.challengeDay !== this.clock.day) {
+        profile.challengeDay = this.clock.day;
+        profile.dailyChallenge = { ...dailyChallengeFor(this.clock.day) };
+        this.notifyRecord(record, {
+          kind: 'event',
+          title: `Tonight's challenge: ${profile.dailyChallenge.label}`,
+          message: profile.dailyChallenge.desc,
+        });
+      }
       try {
         const result = simulateSales(profile, now, this.activeEvent, now < this.rushUntil);
         this.employeeAutoServe(record, now);

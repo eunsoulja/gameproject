@@ -121,6 +121,8 @@ export interface PlayerProfile {
   lastSukiNoticeAt: number;
   quest: DailyQuest | null;
   tutorialStep: number;
+  dailyChallenge: { id: string; label: string; desc: string } | null;
+  challengeDay: number;
   difficulty: 'chill' | 'standard' | 'hustle';
   updatedAt: number;
   online: boolean;

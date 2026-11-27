@@ -152,6 +152,8 @@ export function createNewProfile(input: {
     lastSukiNoticeAt: 0,
     quest: null,
     tutorialStep: 0,
+    dailyChallenge: null,
+    challengeDay: 0,
     difficulty: 'standard',
     updatedAt: Date.now(),
     online: false,
@@ -188,6 +190,11 @@ export function normalizeProfile(input: PlayerProfile): PlayerProfile {
   profile.lastSukiNoticeAt = Number(profile.lastSukiNoticeAt) || 0;
   profile.quest = profile.quest && typeof profile.quest.day === 'number' ? profile.quest : null;
   profile.tutorialStep = Math.max(0, Math.min(4, Math.floor(profile.tutorialStep || 0)));
+  profile.dailyChallenge =
+    profile.dailyChallenge && typeof profile.dailyChallenge.id === 'string'
+      ? profile.dailyChallenge
+      : null;
+  profile.challengeDay = Math.max(0, Math.floor(profile.challengeDay || 0));
   profile.difficulty =
     profile.difficulty === 'chill' || profile.difficulty === 'hustle' ? profile.difficulty : 'standard';
   profile.updatedAt = profile.updatedAt || Date.now();
@@ -390,6 +397,7 @@ export function simulateSales(
     timeModifier *
     difficultyTraffic(profile) *
     (rush ? 1.45 : 1) *
+    (profile.dailyChallenge?.id === 'earlyBird' && profile.dayProgress < 0.5 ? 1.3 : 1) *
     rand(0.72, 1.28);
 
   let serviceLeft = serviceCapacity(profile, now);
@@ -451,6 +459,11 @@ export function simulateSales(
         profile.inventory[product.id] -= 1;
         let unitPrice = effectiveSellingPrice(profile, product);
         unitPrice = Math.round(unitPrice * firstNightBoost(profile));
+        // Premium night rewards vendors who price at or above the guide.
+        const setP = profile.prices[product.id] ?? product.price;
+        if (profile.dailyChallenge?.id === 'premiumNight' && setP >= product.price) {
+          unitPrice = Math.round(unitPrice * 1.15);
+        }
         if (!activePowerUp(profile, 'tawadShield', now)) {
           unitPrice = Math.round(unitPrice * (1 - category.haggle));
         }
