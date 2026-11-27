@@ -214,6 +214,7 @@ export class Game {
       this.plotManager.build();
       this.crowd = new CrowdSystem(this.scene);
       this.crowd.build();
+      this.crowd.setVendorSpots(this.market.vendorSpots);
       this.remotePlayers = new RemotePlayers(this.scene);
       await this.nextFrame();
 

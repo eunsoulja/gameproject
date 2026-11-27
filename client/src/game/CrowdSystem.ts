@@ -13,7 +13,7 @@ export interface Customer {
   targetX: number;
   targetZ: number;
   speed: number;
-  state: 'walk' | 'browse' | 'scan' | 'chat' | 'queue' | 'waitFood' | 'eat' | 'leave' | 'sit';
+  state: 'walk' | 'browse' | 'scan' | 'chat' | 'queue' | 'waitFood' | 'eat' | 'leave' | 'sit' | 'vendor';
   timer: number;
   chatLine: number;
   chatPartner: Customer | null;
@@ -31,6 +31,8 @@ export interface Customer {
   sitIndex: number;
   /** Cooldown before this NPC acknowledges the player again. */
   reactCd: number;
+  /** Vendor stall index while minding a shop (-1 = shopper). */
+  vendorIndex: number;
   faceYaw: number;
   active: boolean;
   bob: number;
@@ -69,6 +71,14 @@ const PLAYER_LINES = [
   'Isang beses lang, ha!', 'Hoy, ang sarap ng kwarta mo!',
   'Salamat sa pag-join!', 'Uy, ang galing mo, angas!',
   'Hoy brader! Masarap dito, di ba?', 'Kumusta sa tindahan!',
+];
+// Calls vendors make from behind their own counters.
+const VENDOR_LINES = [
+  'Sari-sari store! Pabili ka na!', 'Sobrang linis dito, ha!',
+  'Isang bit bit lang, bes!', 'Ang ganda ng prutas ko!',
+  'Tara, pumasok ka lang!', 'Suki treatment sa inyo!',
+  'Babae, ang mura ng saging!', 'Hoy, discounted na ngayon!',
+  'Sari na ko! Pumili ka na!', 'Sarap ng inihaw ko, amoy mo!',
   'Uy, kilala kita! Angas vendor ka!', 'Sarap ng lugar na ito!',
 ];
 
@@ -94,6 +104,7 @@ export class CrowdSystem {
   private playerZ = 0;
   private hasPlayer = false;
   private playerEmoting = false;
+  private vendorSpots: Array<{ x: number; z: number; yaw: number }> = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -163,7 +174,8 @@ export class CrowdSystem {
     if (this.eventVisual === 'flood') target = Math.round(target * 0.4);
     if (this.quality === 'low') target = Math.round(target * 0.55);
     else if (this.quality === 'medium') target = Math.round(target * 0.78);
-    this.targetCount = clamp(target, 8, this.maxCount);
+    // Vendor slots are reserved up front — shoppers fill whatever remains.
+    this.targetCount = clamp(target, 8, Math.max(8, this.maxCount - this.vendorSpots.length));
   }
 
   private createCustomer(index: number): Customer {
@@ -200,6 +212,7 @@ export class CrowdSystem {
       orderTimer: 0,
       sitIndex: -1,
       reactCd: 0,
+      vendorIndex: -1,
       faceYaw: 0,
       active: false,
       bob: index * 0.13,
@@ -217,12 +230,13 @@ export class CrowdSystem {
     }
     this.playerEmoting = playerEmoting;
     this.applyDensity();
+    const vendorCount = Math.min(this.vendorSpots.length, this.customers.length);
     let active = 0;
     for (let i = 0; i < this.customers.length; i++) {
       const customer = this.customers[i];
-      const shouldBeActive = i < this.targetCount;
+      const shouldBeActive = i < vendorCount || i - vendorCount < this.targetCount;
       if (shouldBeActive && !customer.active) {
-        this.activate(customer);
+        this.activate(customer, i);
         customer.active = true;
       } else if (!shouldBeActive && customer.active) {
         customer.active = false;
@@ -240,7 +254,7 @@ export class CrowdSystem {
 
   /** Soft-body separation — shoppers nudge apart instead of overlapping. */
   private separateCustomers(dt: number): void {
-    const act = this.customers.filter((c) => c.active);
+    const act = this.customers.filter((c) => c.active && c.vendorIndex < 0);
     for (let i = 0; i < act.length; i++) {
       const a = act[i];
       for (let j = i + 1; j < act.length; j++) {
@@ -289,7 +303,30 @@ export class CrowdSystem {
     }
   }
 
-  private activate(customer: Customer): void {
+  /** NPC stall keepers — posted behind their own counters, calling out wares. */
+  setVendorSpots(spots: Array<{ x: number; z: number; yaw: number }>): void {
+    this.vendorSpots = spots.slice(0, 10);
+    this.applyDensity();
+  }
+
+  private activate(customer: Customer, index: number): void {
+    const vendorSpot = index < this.vendorSpots.length ? this.vendorSpots[index] : null;
+    if (vendorSpot) {
+      customer.vendorIndex = index;
+      customer.x = vendorSpot.x;
+      customer.z = vendorSpot.z;
+      customer.targetX = vendorSpot.x;
+      customer.targetZ = vendorSpot.z;
+      customer.faceYaw = vendorSpot.yaw;
+      customer.state = 'vendor';
+      customer.timer = range(this.rng, 2, 6);
+      customer.speed = 0;
+      customer.avatar.root.position.set(customer.x, 0, customer.z);
+      customer.avatar.root.rotation.y = vendorSpot.yaw;
+      customer.avatar.root.visible = true;
+      return;
+    }
+    customer.vendorIndex = -1;
     const x = range(this.rng, -7.6, 7.6);
     const z = range(this.rng, WORLD.playableMinZ + 8, WORLD.playableMaxZ - 8);
     customer.x = x;
@@ -312,6 +349,29 @@ export class CrowdSystem {
 
   private updateCustomer(customer: Customer, dt: number, elapsed: number): void {
     customer.talkCd = Math.max(0, customer.talkCd - dt);
+    // Stall keepers stay posted — they call out, tidy up, wave at browsers.
+    if (customer.vendorIndex >= 0 && customer.state === 'vendor') {
+      const spot = this.vendorSpots[customer.vendorIndex];
+      if (!spot) {
+        customer.state = 'scan';
+        customer.timer = 1;
+      } else {
+        customer.timer -= dt;
+        customer.speed += (0 - customer.speed) * Math.min(1, dt * 5);
+        customer.faceYaw = spot.yaw;
+        if (customer.timer <= 0) {
+          customer.timer = range(this.rng, 4, 9);
+          customer.avatar.say(pick(this.rng, VENDOR_LINES), 2.6);
+          if (this.rng() < 0.3) customer.avatar.react();
+        }
+        customer.avatar.setLean(0.04);
+        customer.avatar.root.position.set(customer.x, 0, customer.z);
+        customer.avatar.root.rotation.y +=
+          (customer.faceYaw - customer.avatar.root.rotation.y) * Math.min(1, dt * 4);
+        customer.avatar.update(dt, elapsed + customer.bob, 0.001);
+        return;
+      }
+    }
     // Sleepers doze on the walkway — they mostly stand still, shifting weight.
     // A shopper pulled into a chat wakes up for the conversation.
     if (customer.role === 'sleeper' && customer.state !== 'chat') {

@@ -73,6 +73,8 @@ export class MarketGenerator {
   private glowTexture: THREE.Texture;
   private lights: THREE.Sprite[] = [];
   private built = false;
+  /** Keeper posts behind row-0 stalls — CrowdSystem mans these with vendors. */
+  public readonly vendorSpots: Array<{ x: number; z: number; yaw: number }> = [];
 
   constructor(scene: THREE.Scene, collision: CollisionSystem) {
     this.scene = scene;
@@ -168,6 +170,20 @@ export class MarketGenerator {
 
     for (const spot of spots) {
       this.buildStall(spot);
+      // Now and then a stall gets a keeper standing watch behind the counter.
+      if (
+        spot.depthRow === 0 &&
+        this.vendorSpots.length < 14 &&
+        this.rng() < 0.5 &&
+        !this.nearSideStreet(spot.z, 3)
+      ) {
+        const depth = 3.05;
+        this.vendorSpots.push({
+          x: spot.side * (9.9 + depth - 0.55),
+          z: spot.z,
+          yaw: spot.side > 0 ? -Math.PI / 2 : Math.PI / 2,
+        });
+      }
     }
   }
 
