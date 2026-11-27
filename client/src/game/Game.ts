@@ -158,6 +158,7 @@ export class Game {
 
   private profile: PlayerProfile | null = null;
   private profileReceivedAt = 0;
+  private firstSaleTelemetrySent = false;
   private plots: PublicPlot[] = [];
   private activeEvent: ActiveEventState | null = null;
   private onlineCount = 0;
@@ -1278,6 +1279,11 @@ export class Game {
           return;
         }
         const total = sale.revenue + sale.tip;
+        // Telemetry-lite: report join→first-sale latency once per session.
+        if (!this.firstSaleTelemetrySent) {
+          this.firstSaleTelemetrySent = true;
+          this.network.telemetry({ msToFirstSale: Date.now() - this.profileReceivedAt });
+        }
         const atPos = this.player.position.clone();
         atPos.y += 2.1;
         this.floatingText.cash(total, atPos);

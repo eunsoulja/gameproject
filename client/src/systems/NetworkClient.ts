@@ -299,6 +299,11 @@ export class NetworkClient {
     this.socket.emit('position', position);
   }
 
+  /** Fire-and-forget telemetry ping (join→first-sale funnel). */
+  telemetry(data: unknown): void {
+    (this.socket as any)?.emit('telemetry', data);
+  }
+
   private emitAck<T>(event: string, payload: unknown): Promise<Ack<T>> {
     return new Promise((resolve) => {
       if (!this.socket?.connected) {

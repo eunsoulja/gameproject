@@ -140,6 +140,15 @@ export function registerGameSockets(io: Server, game: GameService): void {
       });
     });
 
+    // Telemetry-lite — client funnel pings (join→first-sale etc). Logged only.
+    socket.on('telemetry', (payload: unknown) => {
+      const p = (payload ?? {}) as Record<string, unknown>;
+      const ms = Number(p.msToFirstSale);
+      if (Number.isFinite(ms) && ms >= 0 && ms < 3_600_000) {
+        console.log(`[telemetry] first-sale latency ${Math.round(ms)}ms`);
+      }
+    });
+
     socket.on('setPrice', (payload: unknown, ack: Ack) => {
       safe(ack, () => {
         if (!rateLimit(socket, 80)) return { ok: false, error: 'Slow down a moment.' };
