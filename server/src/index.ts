@@ -119,6 +119,14 @@ async function bootstrap(): Promise<void> {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
+// Live-ops hardening: log stray async failures instead of crashing the market.
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] Unhandled rejection', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('[server] Uncaught exception', error);
+});
+
 bootstrap().catch((error) => {
   console.error('[server] Failed to start', error);
   process.exit(1);
