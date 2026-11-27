@@ -249,6 +249,10 @@ export class Game {
       onPlayerLeft: (id) => this.remotePlayers.remove(id),
       onNotification: (payload) => {
         this.notifications?.show(payload);
+        // Milestone toasts earn a camera punch.
+        if (payload.kind === 'success' && /quest|guide|upgrade|stall is open|deal struck/i.test(payload.title)) {
+          this.cameraRig?.pulseFov(4.5);
+        }
       },
       onDayReport: (payload) => this.handleDayReport(payload),
       onMarketEvent: (event) => this.handleMarketEvent(event),
@@ -790,6 +794,7 @@ export class Game {
           this.floatingText.spawn(atPos.clone().add(new THREE.Vector3(0.9, 0.4, 0)), `tip +${peso(sale.tip)}`, 'info');
         }
         this.audio.sale();
+        this.cameraRig.pulseFov(2.5);
         window.setTimeout(() => this.audio.cash(), 180);
       } else if (!result.ok && result.error && !result.error.includes('breath')) {
         this.notifications?.show({ kind: 'warning', title: 'Cannot serve', message: result.error }, 2600);
@@ -936,7 +941,9 @@ export class Game {
       this.interaction.setActive(!blocked && !this.intro);
       this.interaction.update(this.player!.position);
       // Trigger after the target refresh so a profile tick can never swallow the E press.
-      if (!blocked && !this.intro && interact) this.interaction.trigger();
+      if (!blocked && !this.intro && interact && this.interaction.trigger()) {
+        this.cameraRig.shake(0.05, 0.18);
+      }
 
       if (this.intro) {
         const skip = this.input.consumeAnyInput();

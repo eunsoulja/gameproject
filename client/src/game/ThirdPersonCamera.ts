@@ -17,6 +17,7 @@ export class ThirdPersonCamera {
   private lookAt = new THREE.Vector3();
   private shakeAmount = 0;
   private shakeTime = 0;
+  private fovBoost = 0;
   private baseFov = 62;
   private fov = 62;
   private ray = new THREE.Ray();
@@ -47,6 +48,11 @@ export class ThirdPersonCamera {
     this.shakeTime = Math.max(this.shakeTime, duration);
   }
 
+  /** Brief FOV punch for big moments — sales, upgrades, quest completes. */
+  pulseFov(amount = 5): void {
+    this.fovBoost = Math.max(this.fovBoost, amount);
+  }
+
   update(dt: number, focus: THREE.Vector3, collision: CollisionSystem, speed = 0, reduceMotion = false): void {
     const follow = 1 - Math.exp(-14 * dt);
     this.target.x += (focus.x - this.target.x) * follow;
@@ -70,7 +76,9 @@ export class ThirdPersonCamera {
 
     this.desired.copy(this.target).addScaledVector(this.direction, -this.currentDistance);
 
-    const targetFov = 62 + clamp((speed - 3.5) * 1.4, 0, 6) + (this.currentDistance < 3 ? 2 : 0);
+    const targetFov =
+      62 + clamp((speed - 3.5) * 1.4, 0, 6) + (this.currentDistance < 3 ? 2 : 0) + this.fovBoost;
+    this.fovBoost *= Math.pow(0.02, dt);
     const fovSpeed = reduceMotion ? 4 : 7;
     this.fov += (targetFov - this.fov) * Math.min(1, dt * fovSpeed);
     if (Math.abs(this.camera.fov - this.fov) > 0.01) {
