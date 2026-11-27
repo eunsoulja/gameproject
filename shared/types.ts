@@ -195,6 +195,9 @@ export interface PriceRequest {
   price: number;
 }
 
+/** Who's at your counter — changes how they buy. */
+export type CounterCustomerType = 'tourist' | 'local' | 'bargain';
+
 export interface HaggleOffer {
   productId: string;
   productName: string;
@@ -213,6 +216,7 @@ export interface SaleReceipt {
   balance: number;
   haggle?: HaggleOffer;
   refused?: boolean;
+  customer?: CounterCustomerType;
 }
 
 export interface NotificationPayload {

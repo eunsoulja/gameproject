@@ -798,6 +798,17 @@ export class Game {
       }
       if (result.ok && result.data) {
         const sale = result.data;
+        if (sale.customer) {
+          const label =
+            sale.customer === 'tourist'
+              ? 'Tourist pays full price!'
+              : sale.customer === 'bargain'
+                ? 'Bargain hunter…'
+                : 'Suki regular!';
+          const atPos = this.player.position.clone();
+          atPos.y += 2.4;
+          this.floatingText.spawn(atPos, label, sale.customer === 'bargain' ? 'warn' : 'success');
+        }
         if (sale.refused) {
           this.floatingText.spawn(this.player.position.clone().setY(2.2), 'customer walked', 'info');
           return;

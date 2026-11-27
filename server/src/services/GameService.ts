@@ -23,6 +23,7 @@ import { plotSlot, spawnForPlot } from '../../../shared/layout';
 import type {
   Ack,
   Appearance,
+  CounterCustomerType,
   GameSnapshot,
   JoinResult,
   MarketOffer,
@@ -78,6 +79,7 @@ interface PendingHaggle {
   askPrice: number;
   offerPrice: number;
   expiresAt: number;
+  customer: CounterCustomerType;
 }
 
 interface Clock {
@@ -569,9 +571,14 @@ export class GameService {
     const unitPrice = Math.round(effectiveSellingPrice(profile, product) * firstNightBoost(profile));
     const askPrice = unitPrice * quantity;
 
+    // Who's at the counter shapes the sale: tourists pay full price and tip
+    // generously, bargain hunters haggle constantly, locals are everyday trade.
+    const roll = Math.random();
+    const customer: CounterCustomerType = roll < 0.34 ? 'tourist' : roll < 0.62 ? 'bargain' : 'local';
+
     // Some customers haggle — tawadShield regulars trust your price and skip it.
     const tawad = profile.powerUps.some((p) => p.id === 'tawadShield' && (p.endsAt === null || p.endsAt > now));
-    const haggleChance = tawad ? 0.04 : 0.3;
+    const haggleChance = tawad ? 0.04 : customer === 'tourist' ? 0.06 : customer === 'bargain' ? 0.45 : 0.3;
     const existing = this.haggles.get(profile.id);
     if (existing && existing.expiresAt > now) {
       return { ok: false, error: 'A customer is still deciding — answer them first.' };
@@ -584,6 +591,7 @@ export class GameService {
         askPrice,
         offerPrice,
         expiresAt: now + 6000,
+        customer,
       });
       return {
         ok: true,
@@ -606,7 +614,10 @@ export class GameService {
       };
     }
 
-    return { ok: true, data: this.completeCounterSale(record, product, quantity, askPrice, now) };
+    return {
+      ok: true,
+      data: this.completeCounterSale(record, product, quantity, askPrice, now, customer),
+    };
   }
 
   /** Customer answered the haggle — accept at their offer or let them walk. */
@@ -640,7 +651,17 @@ export class GameService {
     if (!product || inStock < pending.quantity) {
       return { ok: false, error: 'Not enough stock left to close that deal.' };
     }
-    return { ok: true, data: this.completeCounterSale(record, product, pending.quantity, pending.offerPrice, now) };
+    return {
+      ok: true,
+      data: this.completeCounterSale(
+        record,
+        product,
+        pending.quantity,
+        pending.offerPrice,
+        now,
+        pending.customer,
+      ),
+    };
   }
 
   /** Book a counter sale at the given total price and update all ledgers. */
@@ -650,10 +671,14 @@ export class GameService {
     quantity: number,
     priceTotal: number,
     now: number,
+    customer?: CounterCustomerType,
   ): SaleReceipt {
     const profile = record.profile;
     profile.inventory[product.id] -= quantity;
-    const tip = Math.random() < 0.3 ? Math.round(priceTotal * (0.1 + Math.random() * 0.25)) : 0;
+    // Tourists tip generously; bargain hunters rarely do.
+    const tipChance = customer === 'tourist' ? 0.55 : customer === 'bargain' ? 0.12 : 0.3;
+    const tip =
+      Math.random() < tipChance ? Math.round(priceTotal * (0.1 + Math.random() * 0.25)) : 0;
     const total = priceTotal + tip;
 
     profile.balance += total;
@@ -697,6 +722,7 @@ export class GameService {
       revenue: priceTotal,
       tip,
       balance: profile.balance,
+      customer,
     };
   }
 
