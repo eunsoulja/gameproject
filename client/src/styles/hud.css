@@ -866,6 +866,11 @@
   border-color: rgba(241, 180, 87, 0.3);
   color: #f4d5a2;
 }
+/* Bigger, easier-to-hit interact button on touch devices. */
+@media (pointer: coarse) {
+  .mobile-action.interact { min-width: 84px; min-height: 84px; font-size: 15px; }
+  .joystick-zone { width: 120px; height: 120px; }
+}
 .mobile-action:active { transform: scale(0.95); }
 .mobile-action.hidden { display: none; }
 

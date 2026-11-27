@@ -35,6 +35,8 @@ export class Input {
   private enabled = true;
   private joystickKnob: HTMLElement | null;
   private joystickZone: HTMLElement | null;
+  /** Multiplies virtual-stick deflection — set from Settings.touchSensitivity. */
+  touchSensitivity = 1;
   private detachFns: Array<() => void> = [];
 
   constructor(canvas: HTMLCanvasElement) {
@@ -161,8 +163,9 @@ export class Input {
       const clamped = Math.min(length, this.joystickRadius);
       const nx = length > 0.001 ? (dx / length) * (clamped / this.joystickRadius) : 0;
       const ny = length > 0.001 ? (dy / length) * (clamped / this.joystickRadius) : 0;
-      this.mobileMoveX = nx;
-      this.mobileMoveY = -ny;
+      const boost = Math.min(2, Math.max(0.5, this.touchSensitivity));
+      this.mobileMoveX = Math.min(1, Math.max(-1, nx * boost));
+      this.mobileMoveY = Math.min(1, Math.max(-1, -ny * boost));
       if (this.joystickKnob) {
         this.joystickKnob.style.transform = `translate(${nx * this.joystickRadius}px, ${ny * this.joystickRadius}px)`;
       }

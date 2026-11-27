@@ -921,6 +921,7 @@ export class Game {
       this.applyComposer(settings.quality !== 'low');
     }
     this.player?.setShadows(settings.quality === 'high');
+    this.input.touchSensitivity = settings.touchSensitivity;
     this.remotePlayers?.setShadows(settings.quality === 'high');
     this.remotePlayers?.setShowNames(settings.showNames);
     this.crowd?.setQuality(settings.quality);

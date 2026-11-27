@@ -5,6 +5,7 @@ export interface GameSettings {
   ambienceVolume: number;
   effectsVolume: number;
   sensitivity: number;
+  touchSensitivity: number;
   quality: QualitySetting;
   showNames: boolean;
   reduceMotion: boolean;
@@ -19,6 +20,7 @@ const DEFAULTS: GameSettings = {
   ambienceVolume: 0.55,
   effectsVolume: 0.75,
   sensitivity: 1,
+  touchSensitivity: 1,
   quality: 'high',
   showNames: true,
   reduceMotion: false,
@@ -79,6 +81,7 @@ export class SettingsManager {
         ambienceVolume: clamp01(parsed.ambienceVolume, DEFAULTS.ambienceVolume),
         effectsVolume: clamp01(parsed.effectsVolume, DEFAULTS.effectsVolume),
         sensitivity: clampRange(parsed.sensitivity, 0.35, 2.2, DEFAULTS.sensitivity),
+        touchSensitivity: clampRange(parsed.touchSensitivity, 0.5, 2, DEFAULTS.touchSensitivity),
         quality,
         showNames: typeof parsed.showNames === 'boolean' ? parsed.showNames : DEFAULTS.showNames,
         reduceMotion: typeof parsed.reduceMotion === 'boolean' ? parsed.reduceMotion : DEFAULTS.reduceMotion,

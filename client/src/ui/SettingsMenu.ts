@@ -52,6 +52,7 @@ export class SettingsMenu {
           <div class="settings-group">
             <div class="settings-group-head">${icon('eye', 15)}<b>Camera & comfort</b><span>Drag the world to look</span></div>
             ${this.slider('Mouse sensitivity', 'sensitivity', settings.sensitivity, 0.35, 2.2, 2)}
+            ${this.slider('Touch sensitivity', 'touchSensitivity', settings.touchSensitivity, 0.5, 2, 2)}
             ${this.toggle('Invert drag', 'invertDrag', settings.invertDrag, 'Drag left to look right')}
             ${this.toggle('Player name tags', 'showNames', settings.showNames, 'Show vendor names above other players')}
             ${this.toggle('Reduce motion', 'reduceMotion', settings.reduceMotion, 'Calmer camera and fewer visual effects')}
