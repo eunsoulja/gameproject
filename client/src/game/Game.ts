@@ -807,7 +807,7 @@ export class Game {
                 : 'Suki regular!';
           const atPos = this.player.position.clone();
           atPos.y += 2.4;
-          this.floatingText.spawn(atPos, label, sale.customer === 'bargain' ? 'warn' : 'success');
+          this.floatingText.spawn(atPos, label, 'info');
         }
         if (sale.refused) {
           this.floatingText.spawn(this.player.position.clone().setY(2.2), 'customer walked', 'info');

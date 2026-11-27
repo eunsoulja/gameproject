@@ -249,7 +249,7 @@ export class ShopMenu {
     const canBuy = room > 0 && affordableUnits > 0;
     const quick = [1, 5, 10].filter((quantity) => quantity <= affordableUnits && quantity <= room);
     const maxQuantity = Math.min(room, affordableUnits, 200);
-    const demand = STALL_CATEGORIES.find((c) => c.id === product.category)?.baseDemand ?? 1;
+    const demand = STALL_CATEGORIES[product.category]?.baseDemand ?? 1;
     const ratio = setPrice / Math.max(1, product.price);
     const hint =
       demand >= 1.2 && ratio <= 1.05
