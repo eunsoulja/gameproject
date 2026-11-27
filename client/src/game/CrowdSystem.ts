@@ -18,6 +18,7 @@ interface Customer {
   active: boolean;
   bob: number;
   hasUmbrella: boolean;
+  role: 'walker' | 'sleeper' | 'linger';
 }
 
 const SHIRTS = ['#d9534a', '#3f8ccc', '#f0b64c', '#63a56c', '#9a66c4', '#ef8a52', '#ede3cc', '#3d4a5e', '#c56c93', '#5fb3a8'];
@@ -129,6 +130,7 @@ export class CrowdSystem {
       active: false,
       bob: index * 0.13,
       hasUmbrella: index % 5 < 2,
+      role: index % 9 === 0 ? 'sleeper' : index % 7 === 0 ? 'linger' : 'walker',
     };
   }
 
@@ -167,6 +169,22 @@ export class CrowdSystem {
   }
 
   private updateCustomer(customer: Customer, dt: number, elapsed: number): void {
+    // Sleepers doze on the walkway — they mostly stand still, shifting weight.
+    if (customer.role === 'sleeper') {
+      customer.timer -= dt;
+      customer.speed += (0 - customer.speed) * Math.min(1, dt * 3);
+      if (customer.timer <= 0) {
+        customer.timer = range(this.rng, 14, 30);
+        customer.x += range(this.rng, -0.5, 0.5);
+        customer.z += range(this.rng, -0.5, 0.5);
+        customer.faceYaw = range(this.rng, -0.6, 0.6) + (customer.x < 0 ? Math.PI / 2 : -Math.PI / 2);
+      }
+      customer.avatar.root.position.set(customer.x, 0, customer.z);
+      customer.avatar.setLean(0.05);
+      customer.avatar.root.rotation.y += (customer.faceYaw - customer.avatar.root.rotation.y) * Math.min(1, dt * 2);
+      customer.avatar.update(dt, elapsed + customer.bob, 0.001);
+      return;
+    }
     customer.timer -= dt;
     if (customer.state === 'scan') {
       if (customer.timer <= 0) {
@@ -181,7 +199,10 @@ export class CrowdSystem {
       const targetSpeed = customer.speed > 0.1 ? customer.speed : range(this.rng, 1.15, 1.75);
       if (distance < 0.42) {
         customer.state = 'browse';
-        customer.timer = range(this.rng, 1.8, 5.6) * (this.eventVisual === 'crowd' ? 1.35 : 1);
+        customer.timer =
+          range(this.rng, 1.8, 5.6) *
+          (this.eventVisual === 'crowd' ? 1.35 : 1) *
+          (customer.role === 'linger' ? 2.4 : 1);
         if (this.eventVisual === 'crowd') customer.timer += 1.2;
         customer.faceYaw = this.browseYaw(customer);
       } else {
