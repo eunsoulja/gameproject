@@ -223,6 +223,8 @@ export interface SaleReceipt {
   haggle?: HaggleOffer;
   refused?: boolean;
   customer?: CounterCustomerType;
+  /** Karendero only — customer asks for extra rice right after being served. */
+  upsell?: boolean;
 }
 
 export interface NotificationPayload {
@@ -280,6 +282,10 @@ export type ClientEventMap = {
   serveDish: (
     payload: { dishId: string },
     ack: (result: Ack<SaleReceipt>) => void,
+  ) => void;
+  karenderoUpsell: (
+    payload: { accept: boolean },
+    ack: (result: Ack<{ price: number; balance: number }>) => void,
   ) => void;
   setPrice: (payload: PriceRequest, ack: (result: Ack<PlayerProfile>) => void) => void;
   setBusinessName: (payload: { name: string }, ack: (result: Ack<PlayerProfile>) => void) => void;

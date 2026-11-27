@@ -24,6 +24,7 @@ import {
   KARENDERO_DISHES,
   KARENDERO_MAX_ORDERS,
   KARENDERO_ORDER_TTL_MS,
+  KARENDERO_RICE_PRICE,
   type KarenderoOrderInfo,
   type KarenderoOrderReceipt,
   type KarenderoPickup,
@@ -150,6 +151,8 @@ export class GameService {
   private haggles = new Map<string, PendingHaggle>();
   private karenderoOrders = new Map<string, Array<KarenderoOrderInfo & { served?: boolean }>>();
   private lastOrderAt = new Map<string, number>();
+  /** profileId → timestamp until which an "extra rice?" offer is open. */
+  private karenderoUpsells = new Map<string, number>();
   private rushUntil = 0;
   private nextRushAt = 0;
   private nextOfferAt = 0;
@@ -924,6 +927,9 @@ export class GameService {
       profile.balance,
       `${order.dishName} (karendero)`,
     );
+    // Some customers ask for extra rice right after being served.
+    const upsell = Math.random() < 0.45;
+    if (upsell) this.karenderoUpsells.set(profile.id, now + 10_000);
     this.emitProfile(record);
     void this.saveService.save(this.serializeRecord(record)!);
 
@@ -937,8 +943,42 @@ export class GameService {
         tip,
         balance: profile.balance,
         customer: 'local',
+        upsell,
       },
     };
+  }
+
+  /** Answer the "extra rice?" offer that followed a karendero serving. */
+  respondKarenderoUpsell(socketId: string, accept: boolean): Ack<{ price: number; balance: number }> {
+    const record = this.recordForSocket(socketId);
+    if (!record) return { ok: false, error: 'Join the market first.' };
+    const profile = record.profile;
+    const now = Date.now();
+    const deadline = this.karenderoUpsells.get(profile.id);
+    if (!deadline || deadline < now) {
+      return { ok: false, error: 'Too late — they already left.' };
+    }
+    this.karenderoUpsells.delete(profile.id);
+    if (!accept) {
+      return { ok: true, data: { price: 0, balance: profile.balance } };
+    }
+    const spotError = this.karenderoSpotCheck(record);
+    if (spotError) return { ok: false, error: spotError };
+
+    profile.balance += KARENDERO_RICE_PRICE;
+    profile.today.revenue += KARENDERO_RICE_PRICE;
+    profile.lifetime.totalRevenue += KARENDERO_RICE_PRICE;
+    profile.lifetime.totalEarnings += KARENDERO_RICE_PRICE;
+    this.saveService.recordTransaction(
+      profile.id,
+      'sale',
+      KARENDERO_RICE_PRICE,
+      profile.balance,
+      'Extra rice (karendero)',
+    );
+    this.emitProfile(record);
+    void this.saveService.save(this.serializeRecord(record)!);
+    return { ok: true, data: { price: KARENDERO_RICE_PRICE, balance: profile.balance } };
   }
 
   setPrice(socketId: string, productId: string, price: number): Ack<PlayerProfile> {

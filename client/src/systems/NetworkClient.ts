@@ -82,6 +82,10 @@ interface ClientToServerEvents {
     payload: { dishId: string },
     ack: (result: Ack<SaleReceipt>) => void,
   ) => void;
+  karenderoUpsell: (
+    payload: { accept: boolean },
+    ack: (result: Ack<{ price: number; balance: number }>) => void,
+  ) => void;
   setPrice: (
     payload: { productId: string; price: number },
     ack: (result: Ack<PlayerProfile>) => void,
@@ -335,6 +339,10 @@ export class NetworkClient {
 
   serveDish(dishId: string): Promise<Ack<SaleReceipt>> {
     return this.emitAck('serveDish', { dishId });
+  }
+
+  karenderoUpsell(accept: boolean): Promise<Ack<{ price: number; balance: number }>> {
+    return this.emitAck('karenderoUpsell', { accept });
   }
 
   setPrice(productId: string, price: number): Promise<Ack<PlayerProfile>> {

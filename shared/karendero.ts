@@ -25,6 +25,9 @@ export const KARENDERO_MAX_ORDERS = 3;
 /** An order stays claimable this long after it is ready. */
 export const KARENDERO_ORDER_TTL_MS = 75_000;
 
+/** "Extra rice?" up-sell price offered after some karendero servings. */
+export const KARENDERO_RICE_PRICE = 15;
+
 /** Client-visible snapshot of one open order. */
 export interface KarenderoOrderInfo {
   dishId: string;

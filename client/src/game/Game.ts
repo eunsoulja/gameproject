@@ -46,6 +46,7 @@ import { CrowdSystem, type Customer } from './CrowdSystem';
 import {
   KARENDERO_MAX_ORDERS,
   KARENDERO_ORDER_TTL_MS,
+  KARENDERO_RICE_PRICE,
   type KarenderoOrderInfo,
 } from '../../../shared/karendero';
 import { Environment } from './Environment';
@@ -130,6 +131,7 @@ export class Game {
   private introPlayed = false;
   private confetti: Confetti | null = null;
   private hagglePrompt: HTMLElement | null = null;
+  private upsellPrompt: HTMLElement | null = null;
   private fpsEl: HTMLElement | null = null;
   private fpsTimer = 0;
   private fpsFrames = 0;
@@ -1073,7 +1075,72 @@ export class Game {
         this.floatingText.spawn(at.clone().add(new THREE.Vector3(0.9, 0.4, 0)), `tip +${peso(sale.tip)}`, 'info');
       }
       window.setTimeout(() => this.audio.cash(), 180);
+      if (sale.upsell) this.showUpsellPrompt();
     });
+  }
+
+  /** "Extra rice?" — a served customer asks for a small add-on, timed yes/no. */
+  private showUpsellPrompt(): void {
+    if (this.upsellPrompt || this.hagglePrompt) return;
+    const root = document.getElementById('overlay-root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.className = 'haggle-prompt';
+    el.innerHTML = `
+      <div class="haggle-card">
+        <b>Karendero customer</b>
+        <p>"Extra rice? ${peso(KARENDERO_RICE_PRICE)} lang!"</p>
+        <div class="haggle-actions">
+          <button type="button" class="haggle-accept">Yes, +${peso(KARENDERO_RICE_PRICE)}</button>
+          <button type="button" class="haggle-hold">No thanks</button>
+        </div>
+        <div class="haggle-timer"><span></span></div>
+      </div>`;
+    root.appendChild(el);
+    this.upsellPrompt = el;
+
+    const timerBar = el.querySelector<HTMLElement>('.haggle-timer span')!;
+    const duration = 8000;
+    const started = performance.now();
+    let answered = false;
+
+    const answer = (accept: boolean): void => {
+      if (answered) return;
+      answered = true;
+      window.clearInterval(tick);
+      el.remove();
+      this.upsellPrompt = null;
+      this.audio.click();
+      void this.network.karenderoUpsell(accept).then((result) => {
+        if (!this.player) return;
+        if (result.ok && result.data && result.data.price > 0) {
+          const at = this.player.position.clone();
+          at.y += 2.1;
+          this.floatingText.cash(result.data.price, at);
+          this.floatingText.spawn(at.clone().add(new THREE.Vector3(0.9, 0.4, 0)), 'extra rice!', 'info');
+          this.audio.sale();
+          window.setTimeout(() => this.audio.cash(), 180);
+        } else if (!result.ok && result.error) {
+          this.floatingText.spawn(this.player.position.clone().setY(2.2), result.error, 'info');
+        }
+      });
+    };
+
+    el.querySelector<HTMLButtonElement>('.haggle-accept')!.addEventListener('click', () => answer(true));
+    el.querySelector<HTMLButtonElement>('.haggle-hold')!.addEventListener('click', () => answer(false));
+
+    const tick = window.setInterval(() => {
+      const remaining = 1 - (performance.now() - started) / duration;
+      timerBar.style.transform = `scaleX(${Math.max(0, remaining)})`;
+      if (remaining <= 0) {
+        answered = true;
+        window.clearInterval(tick);
+        el.remove();
+        this.upsellPrompt = null;
+        // Walked away — tell the server so the offer clears.
+        void this.network.karenderoUpsell(false);
+      }
+    }, 100);
   }
 
   /** Hands-on counter sale — full price plus tips, server-authoritative. */

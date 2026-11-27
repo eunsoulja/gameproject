@@ -132,6 +132,14 @@ export function registerGameSockets(io: Server, game: GameService): void {
       });
     });
 
+    socket.on('karenderoUpsell', (payload: unknown, ack: Ack) => {
+      safe(ack, () => {
+        if (!rateLimit(socket, 100)) return { ok: false, error: 'Slow down a moment.' };
+        const p = (payload ?? {}) as Record<string, unknown>;
+        return game.respondKarenderoUpsell(socket.id, p.accept === true);
+      });
+    });
+
     socket.on('setPrice', (payload: unknown, ack: Ack) => {
       safe(ack, () => {
         if (!rateLimit(socket, 80)) return { ok: false, error: 'Slow down a moment.' };
