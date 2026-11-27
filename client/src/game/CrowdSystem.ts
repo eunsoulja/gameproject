@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLOT_SLOTS, WORLD } from '../../../shared/layout';
+import { DISTRICTS, PLOT_SLOTS, WORLD } from '../../../shared/layout';
 import type { EventVisual } from '../../../shared/config';
 import type { QualitySetting } from '../systems/Settings';
 import { CrowdAvatar } from './CrowdAvatar';
@@ -238,6 +238,17 @@ export class CrowdSystem {
     return side > 0 ? -Math.PI / 2 : Math.PI / 2;
   }
 
+  /** Pick a z biased toward busy districts — plaza and drag pull crowds. */
+  private pickCrowdZ(): number {
+    const total = DISTRICTS.reduce((s, d) => s + d.crowd, 0);
+    let roll = this.rng() * total;
+    for (const zone of DISTRICTS) {
+      roll -= zone.crowd;
+      if (roll <= 0) return range(this.rng, zone.zMin + 5, zone.zMax - 5);
+    }
+    return range(this.rng, WORLD.playableMinZ + 8, WORLD.playableMaxZ - 8);
+  }
+
   private chooseTarget(customer: Customer): void {
     const roll = this.rng();
     if (this.ownConfigured && roll < 0.38) {
@@ -247,9 +258,9 @@ export class CrowdSystem {
       return;
     }
     if (roll < 0.74) {
-      // Browse one of the long rows of NPC stalls.
+      // Browse one of the long rows of NPC stalls, biased to busy districts.
       const side = this.rng() > 0.5 ? 1 : -1;
-      let z = range(this.rng, WORLD.playableMinZ + 8, WORLD.playableMaxZ - 8);
+      let z = this.pickCrowdZ();
       if (z > -30 && z < 88) {
         z = this.rng() > 0.5 ? range(this.rng, 94, 214) : range(this.rng, -214, -38);
       }
