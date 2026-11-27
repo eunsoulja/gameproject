@@ -160,6 +160,9 @@ export class Game {
   private profileReceivedAt = 0;
   private firstSaleTelemetrySent = false;
   private spectateMode = false;
+  private stepPuffs: Array<{ mesh: THREE.Mesh; life: number }> = [];
+  private stepTimer = 0;
+  private stepGeometry: THREE.CircleGeometry | null = null;
   private plots: PublicPlot[] = [];
   private activeEvent: ActiveEventState | null = null;
   private onlineCount = 0;
@@ -944,6 +947,25 @@ export class Game {
     }
   }
 
+  private spawnStepPuff(): void {
+    const p = this.player?.position;
+    if (!p) return;
+    if (!this.stepGeometry) this.stepGeometry = new THREE.CircleGeometry(0.14, 10);
+    if (this.stepPuffs.length > 14) {
+      const old = this.stepPuffs.shift()!;
+      this.scene.remove(old.mesh);
+      (old.mesh.material as THREE.Material).dispose();
+    }
+    const mesh = new THREE.Mesh(
+      this.stepGeometry,
+      new THREE.MeshBasicMaterial({ color: '#d8c8a8', transparent: true, opacity: 0.32, depthWrite: false }),
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(p.x + (Math.random() - 0.5) * 0.3, 0.03, p.z + (Math.random() - 0.5) * 0.3);
+    this.scene.add(mesh);
+    this.stepPuffs.push({ mesh, life: 0 });
+  }
+
   private decalTextures: Array<THREE.Texture | null> = [];
 
   private queueNumberTexture(n: number, cb: boolean): THREE.Texture {
@@ -1573,6 +1595,13 @@ export class Game {
         intent = { ...intent, x: intent.x * 0.72, y: intent.y * 0.72, sprint: false };
       }
       this.player!.update(dt, this.elapsed, intent, this.cameraRig.yaw, this.collision);
+      // Footstep dust puffs while sprinting.
+      const sprinting = intent.sprint && (intent.x !== 0 || intent.y !== 0);
+      this.stepTimer -= dt;
+      if (sprinting && this.stepTimer <= 0) {
+        this.stepTimer = 0.24;
+        this.spawnStepPuff();
+      }
       const landing = this.player!.consumeLanding();
       if (landing > 0) {
         this.cameraRig.shake(0.16 * landing, 0.28);
@@ -1629,6 +1658,21 @@ export class Game {
     this.crowd.update(dt, this.elapsed, this.player?.position, this.activeEmote != null);
     this.updateNpcTalkTarget();
     this.updateKarendero();
+    // Age footstep puffs.
+    for (let i = this.stepPuffs.length - 1; i >= 0; i--) {
+      const puff = this.stepPuffs[i];
+      puff.life += dt;
+      const t = puff.life / 0.55;
+      if (t >= 1) {
+        this.scene.remove(puff.mesh);
+        (puff.mesh.material as THREE.Material).dispose();
+        this.stepPuffs.splice(i, 1);
+        continue;
+      }
+      const s = 0.6 + t * 1.8;
+      puff.mesh.scale.set(s, s, 1);
+      (puff.mesh.material as THREE.MeshBasicMaterial).opacity = 0.32 * (1 - t);
+    }
     this.trafficTimer -= dt;
     if (this.trafficTimer <= 0) {
       this.trafficTimer = 0.6;
