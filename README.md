@@ -100,3 +100,29 @@ shared/            Types, config, and layout shared by client and server
 - `GET /api/health` — server status, persistence mode, market debug info
 - `GET /api/market` — public market status
 - `GET /api/version` — app name and version
+
+## Changelog — NPC realism arc (P1–P50)
+
+**NPC life** — realistic walk cycles with turn banking, soft-body crowd separation,
+bench sitting, idle fidgets (watch checks, phone scroll, stretches), kids and elders
+with distinct gaits, greeting pairs, umbrella etiquette, vendor keepers behind stalls,
+and NPCs that wave back and step aside when you emote nearby. Every shopper has a
+name, chats in Taglish, and can be chatted with (E) — suki regulars queue more often
+and earn a ★ badge and milestone toast.
+
+**Karendero mode** — food stalls run a real queue: take order → auto-cook → pick up →
+serve the match. Drinks add-ons, "Extra rice?" up-sells, fast-service streaks,
+star reviews, patience timers, numbered floor decals, and a colorblind-safe marker
+option. Karendero stats live in the lifetime ledger alongside an NPC chat counter.
+
+**World & ambience** — district zoning (Ukay Alley, Pasalubong Row, Plaza del Mercado,
+Pares District, Colon Drag, Night Market Row), lot-tier stall placement, category
+silhouettes, visible upgrade dressing, street clutter (bikes, planters, vending
+machines, loading docks), swaying laundry, steam vents, string-light sway, lantern
+flicker, wet-ground treatment, rain ripple rings, footstep dust, and procedural
+market music plus ambient NPC mumble.
+
+**UI & tech** — minimap, pinnable objective tracker, objective toasts, stats ledger,
+awning color picker, spectate orbit cam (C), spin emote (5), touch-friendly chat
+radius, crowd distance LOD, draw-call readout, shadows-first auto-quality, and a
+join→first-sale telemetry ping.
