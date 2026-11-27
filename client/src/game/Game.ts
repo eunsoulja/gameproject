@@ -1031,9 +1031,13 @@ export class Game {
           this.audio.click();
         }
       }
-      const intent = blocked || this.intro
+      let intent = blocked || this.intro
         ? { x: 0, y: 0, sprint: false, jump: false }
         : { x: this.input.movement.x, y: this.input.movement.y, sprint: this.input.sprint, jump };
+      // Typhoon winds push back — you wade through the storm.
+      if (this.weather.isStorm && (intent.x !== 0 || intent.y !== 0)) {
+        intent = { ...intent, x: intent.x * 0.72, y: intent.y * 0.72, sprint: false };
+      }
       this.player!.update(dt, this.elapsed, intent, this.cameraRig.yaw, this.collision);
       const landing = this.player!.consumeLanding();
       if (landing > 0) {
