@@ -1462,7 +1462,10 @@ export class Game {
       }
       if (this.fpsEl) {
         this.fpsEl.style.display = want ? 'block' : 'none';
-        if (want) this.fpsEl.textContent = `${fps} fps`;
+        if (want) {
+          const calls = this.renderer?.info.render.calls ?? 0;
+          this.fpsEl.textContent = `${fps} fps · ${calls} draws`;
+        }
       }
       // Auto-quality: sustained low FPS steps the renderer down once.
       this.fpsSamples.push(fps);
