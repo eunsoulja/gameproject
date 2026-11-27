@@ -37,7 +37,7 @@ export interface Customer {
   active: boolean;
   bob: number;
   hasUmbrella: boolean;
-  role: 'walker' | 'sleeper' | 'linger' | 'kid';
+  role: 'walker' | 'sleeper' | 'linger' | 'kid' | 'elder';
 }
 
 const SHIRTS = ['#d9534a', '#3f8ccc', '#f0b64c', '#63a56c', '#9a66c4', '#ef8a52', '#ede3cc', '#3d4a5e', '#c56c93', '#5fb3a8'];
@@ -188,9 +188,13 @@ export class CrowdSystem {
     const avatar = new CrowdAvatar(appearance, range(this.rng, 0.88, 1.03));
     // Roughly one shopper in nine is a kid — smaller, quicker, skips sometimes.
     const isKid = index % 11 === 4;
+    // And one in thirteen is an elder — slower, a little more stooped.
+    const isElder = !isKid && index % 13 === 7;
     if (isKid) {
       avatar.root.scale.multiplyScalar(0.58);
       avatar.setKid(true);
+    } else if (isElder) {
+      avatar.setElder(true);
     }
     avatar.root.visible = false;
     this.scene.add(avatar.root);
@@ -223,7 +227,7 @@ export class CrowdSystem {
       active: false,
       bob: index * 0.13,
       hasUmbrella: index % 5 < 2,
-      role: isKid ? 'kid' : index % 9 === 0 ? 'sleeper' : index % 7 === 0 ? 'linger' : 'walker',
+      role: isKid ? 'kid' : isElder ? 'elder' : index % 9 === 0 ? 'sleeper' : index % 7 === 0 ? 'linger' : 'walker',
     };
   }
 
@@ -418,13 +422,13 @@ export class CrowdSystem {
           range(this.rng, 1.8, 5.6) *
           (this.eventVisual === 'crowd' ? 1.35 : 1) *
           (customer.role === 'linger' ? 2.4 : 1) *
-          (customer.role === 'kid' ? 0.7 : 1);
+          (customer.role === 'kid' ? 0.7 : customer.role === 'elder' ? 1.5 : 1);
         if (this.eventVisual === 'crowd') customer.timer += 1.2;
         customer.faceYaw = this.browseYaw(customer);
       } else {
         const nx = dx / distance;
         const nz = dz / distance;
-        const pace = customer.role === 'kid' ? 1.3 : 1;
+        const pace = customer.role === 'kid' ? 1.3 : customer.role === 'elder' ? 0.72 : 1;
         const step = Math.min(distance, targetSpeed * pace * dt);
         customer.x += nx * step;
         customer.z += nz * step;

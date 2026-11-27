@@ -111,9 +111,14 @@ export class CrowdAvatar {
   }
 
   private kid = false;
+  private elder = false;
 
   setKid(on: boolean): void {
     this.kid = on;
+  }
+
+  setElder(on: boolean): void {
+    this.elder = on;
   }
 
   /** Forward hunch (radians) — used when browsing a stall. */
@@ -226,7 +231,8 @@ export class CrowdAvatar {
       // Faster feet in a storm — hurried shuffle, deeper bob.
       const hurry = 1 + storm * 0.55;
       // Kids scamper — quicker stride, springier bob.
-      this.phase += dt * (4.8 + Math.min(3, speed * 1.5)) * hurry * (this.kid ? 1.45 : 1);
+      this.phase +=
+        dt * (4.8 + Math.min(3, speed * 1.5)) * hurry * (this.kid ? 1.45 : this.elder ? 0.72 : 1);
       const bobAmp = (0.035 + storm * 0.02) * (this.kid ? 1.5 : 1);
       // Heel-strike shape — sharper contact, softer push-off.
       let hop = Math.pow(Math.abs(Math.sin(this.phase)), 0.85) * bobAmp;
@@ -246,6 +252,7 @@ export class CrowdAvatar {
         Math.min(0.05, speed * 0.022) +
         storm * 0.12 +
         this.lean +
+        (this.elder ? 0.14 : 0) +
         Math.sin(this.phase * 2) * 0.012;
       // Shopping bag swings a touch livelier.
       this.mesh.position.x = Math.sin(this.phase * 0.5) * 0.008;
@@ -257,7 +264,8 @@ export class CrowdAvatar {
       this.mesh.position.x = Math.sin(elapsed * 0.9 + this.phase * 1.7) * 0.016;
       this.mesh.rotation.z += (0 - this.mesh.rotation.z) * Math.min(1, dt * 4);
       this.mesh.rotation.x +=
-        (this.lean + storm * 0.14 + this.sit * 0.1 + (onPhone ? 0.34 : 0) - this.mesh.rotation.x) *
+        (this.lean + storm * 0.14 + this.sit * 0.1 + (this.elder ? 0.16 : 0) + (onPhone ? 0.34 : 0) -
+          this.mesh.rotation.x) *
         Math.min(1, dt * 4);
       this.mesh.rotation.y = Math.sin(elapsed * 0.45 + this.phase) * 0.3 * idle;
       if (checkingWatch) {
