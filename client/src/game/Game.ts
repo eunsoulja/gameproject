@@ -116,6 +116,8 @@ export class Game {
   private fpsTimer = 0;
   private fpsFrames = 0;
   private recentToasts = new Map<string, number>();
+  private fpsSamples: number[] = [];
+  private autoQualityDone = false;
   private onboarded = false;
   private muted = false;
   private earnedBadges = new Set<string>();
@@ -999,6 +1001,21 @@ export class Game {
       if (this.fpsEl) {
         this.fpsEl.style.display = want ? 'block' : 'none';
         if (want) this.fpsEl.textContent = `${fps} fps`;
+      }
+      // Auto-quality: sustained low FPS steps the renderer down once.
+      this.fpsSamples.push(fps);
+      if (this.fpsSamples.length > 10) this.fpsSamples.shift();
+      if (!this.autoQualityDone && this.fpsSamples.length === 10) {
+        const avg = this.fpsSamples.reduce((a, b) => a + b, 0) / this.fpsSamples.length;
+        const q = this.settings.current.quality;
+        if (avg < 45 && q === 'high') {
+          this.settings.set('quality', 'medium');
+          this.notifications?.info('Performance', 'Quality lowered to medium to keep the market smooth.', 'info');
+        } else if (avg < 40 && q === 'medium') {
+          this.settings.set('quality', 'low');
+          this.notifications?.info('Performance', 'Quality lowered to low to keep the market smooth.', 'info');
+        }
+        this.autoQualityDone = true;
       }
     }
     const resetCam = this.input.consumeResetCamera();
