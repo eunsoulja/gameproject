@@ -80,6 +80,8 @@ export class MarketGenerator {
   /** Grill smoke and steamer plumes over NPC food stalls. */
   private steamVents: Array<{ sprite: THREE.Sprite; base: THREE.Vector3; phase: number }> = [];
   private steamTexture: THREE.Texture | null = null;
+  /** Bulbs on sagging strings — they bob and swing gently. */
+  private swayLights: Array<{ sprite: THREE.Sprite; base: THREE.Vector3; phase: number }> = [];
   /** Keeper posts behind row-0 stalls — CrowdSystem mans these with vendors. */
   public readonly vendorSpots: Array<{ x: number; z: number; yaw: number }> = [];
 
@@ -108,6 +110,7 @@ export class MarketGenerator {
     this.buildLaundry();
     this.buildVendingAndDock();
     this.buildChalkboards();
+    this.buildSwayLights();
 
     addMergedMesh(this.scene, this.structural, MATERIALS.structure(), 'market-structure');
     addMergedMesh(this.scene, this.fabric, MATERIALS.fabric(), 'market-canopies');
@@ -151,6 +154,14 @@ export class MarketGenerator {
       );
       vent.sprite.scale.setScalar(0.28 + t * 0.5);
       (vent.sprite.material as THREE.SpriteMaterial).opacity = Math.sin(t * Math.PI) * 0.3;
+    }
+    // String lights sway almost imperceptibly in the breeze.
+    for (const bulb of this.swayLights) {
+      bulb.sprite.position.set(
+        bulb.base.x + Math.sin(elapsed * 0.8 + bulb.phase) * 0.06,
+        bulb.base.y + Math.sin(elapsed * 1.15 + bulb.phase * 1.3) * 0.05,
+        bulb.base.z,
+      );
     }
   }
 
@@ -1058,6 +1069,27 @@ export class MarketGenerator {
       this.metal.push(box(0.05, 1.0, 0.05, '#4a3d2c', { x: x - side * 0.28, y: 0.5, z: z + 0.3, rx: -0.35 }));
       this.metal.push(box(0.05, 1.0, 0.05, '#4a3d2c', { x: x + side * 0.28, y: 0.5, z: z - 0.3, rx: -0.35 }));
       this.metal.push(box(0.05, 1.0, 0.05, '#4a3d2c', { x: x + side * 0.28, y: 0.5, z: z + 0.3, rx: 0.35 }));
+    }
+  }
+
+  /** Bulb strings sagging curb-to-curb — sprites so they can sway. */
+  private buildSwayLights(): void {
+    if (this.quality === 'low') return;
+    const zones = [WORLD.playableMinZ + 30, -60, 130, WORLD.playableMaxZ - 40];
+    for (const z of zones) {
+      if (this.nearSideStreet(z, 5)) continue;
+      const y = range(this.rng, 3.4, 3.9);
+      // The wire itself stays merged; bulbs hang as sprites.
+      this.metal.push(box(19.4, 0.02, 0.02, '#3a342c', { x: 0, y, z }));
+      for (let i = 0; i < 9; i++) {
+        const t = i / 8;
+        const bx = -9.2 + t * 18.4;
+        const sag = Math.sin(t * Math.PI) * 0.4;
+        const sprite = makeGlowSprite(this.glowTexture, pick(this.rng, ['#ffd27a', '#ff9d6b', '#ffe9b0']), 0.55);
+        sprite.position.set(bx, y - sag - 0.22, z);
+        this.scene.add(sprite);
+        this.swayLights.push({ sprite, base: sprite.position.clone(), phase: this.rng() * Math.PI * 2 });
+      }
     }
   }
 
