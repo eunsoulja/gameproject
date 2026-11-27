@@ -24,6 +24,8 @@ export class CrowdAvatar {
   private cheer = 0;
   private prevYaw = 0;
   private turnRate = 0;
+  private sit = 0;
+  private sitTarget = 0;
 
   constructor(appearance: Appearance, scale = 1) {
     const parts: THREE.BufferGeometry[] = [];
@@ -189,6 +191,11 @@ export class CrowdAvatar {
     this.cheer = 1;
   }
 
+  /** Seated pose — haunches down onto a bench, leans back slightly. */
+  setSit(on: boolean): void {
+    this.sitTarget = on ? 1 : 0;
+  }
+
   get position(): THREE.Vector3 {
     return this.root.position;
   }
@@ -197,6 +204,7 @@ export class CrowdAvatar {
     this.lean += (this.leanTarget - this.lean) * Math.min(1, dt * 6);
     this.storm += (this.stormTarget - this.storm) * Math.min(1, dt * 2.5);
     this.cheer += (0 - this.cheer) * Math.min(1, dt * 1.6);
+    this.sit += (this.sitTarget - this.sit) * Math.min(1, dt * 4);
     if (this.bubbleLife > 0) this.bubbleLife -= dt;
     const storm = this.storm;
     const idle = speed <= 0.08 ? 1 : 0;
@@ -228,10 +236,11 @@ export class CrowdAvatar {
       this.mesh.rotation.y += (0 - this.mesh.rotation.y) * Math.min(1, dt * 5);
     } else {
       // Idle: breathing, weight shift and a slow look-around.
-      this.mesh.position.y = Math.sin(elapsed * 1.3 + this.phase) * (0.006 + storm * 0.002);
+      this.mesh.position.y =
+        Math.sin(elapsed * 1.3 + this.phase) * (0.006 + storm * 0.002) - this.sit * 0.55;
       this.mesh.position.x = Math.sin(elapsed * 0.9 + this.phase * 1.7) * 0.016;
       this.mesh.rotation.z += (0 - this.mesh.rotation.z) * Math.min(1, dt * 4);
-      this.mesh.rotation.x += (this.lean + storm * 0.14 - this.mesh.rotation.x) * Math.min(1, dt * 4);
+      this.mesh.rotation.x += (this.lean + storm * 0.14 + this.sit * 0.1 - this.mesh.rotation.x) * Math.min(1, dt * 4);
       this.mesh.rotation.y = Math.sin(elapsed * 0.45 + this.phase) * 0.3 * idle;
       this.turnRate *= Math.max(0, 1 - dt * 6);
     }

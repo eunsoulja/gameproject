@@ -13,7 +13,7 @@ export interface Customer {
   targetX: number;
   targetZ: number;
   speed: number;
-  state: 'walk' | 'browse' | 'scan' | 'chat' | 'queue' | 'waitFood' | 'eat' | 'leave';
+  state: 'walk' | 'browse' | 'scan' | 'chat' | 'queue' | 'waitFood' | 'eat' | 'leave' | 'sit';
   timer: number;
   chatLine: number;
   chatPartner: Customer | null;
@@ -27,6 +27,8 @@ export interface Customer {
   waitIndex: number;
   /** Seconds the order can sit before the customer gives up. */
   orderTimer: number;
+  /** Plaza bench index while sitting (-1 = not seated). */
+  sitIndex: number;
   faceYaw: number;
   active: boolean;
   bob: number;
@@ -85,6 +87,7 @@ export class CrowdSystem {
   private rainy = false;
   private progress = START_PROGRESS;
   private built = false;
+  private benchSpots: Array<{ x: number; z: number }> = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -95,6 +98,15 @@ export class CrowdSystem {
     this.built = true;
     for (let i = 0; i < this.maxCount; i++) {
       this.customers.push(this.createCustomer(i));
+    }
+    // Plaza benches — same layout MarketGenerator builds.
+    const plaza = DISTRICTS.find((d) => d.id === 'plaza');
+    if (plaza) {
+      for (let z = plaza.zMin + 6; z < plaza.zMax - 4; z += 14) {
+        for (const s of [-1, 1] as Array<-1 | 1>) {
+          this.benchSpots.push({ x: s * 5.4, z });
+        }
+      }
     }
     this.applyDensity();
   }
@@ -180,6 +192,7 @@ export class CrowdSystem {
       orderDishName: null,
       waitIndex: -1,
       orderTimer: 0,
+      sitIndex: -1,
       faceYaw: 0,
       active: false,
       bob: index * 0.13,
@@ -248,6 +261,8 @@ export class CrowdSystem {
     customer.orderDishName = null;
     customer.waitIndex = -1;
     customer.orderTimer = 0;
+    customer.sitIndex = -1;
+    customer.avatar.setSit(false);
   }
 
   private updateCustomer(customer: Customer, dt: number, elapsed: number): void {
@@ -354,6 +369,33 @@ export class CrowdSystem {
         customer.orderTimer -= dt;
         if (customer.orderTimer <= 0) this.sendAway(customer, 'Sayang, nilipas na!');
       }
+    } else if (customer.state === 'sit') {
+      // Walk to a plaza bench, sit for a spell, then move on.
+      const dx = customer.targetX - customer.x;
+      const dz = customer.targetZ - customer.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance > 0.5) {
+        const targetSpeed = customer.speed > 0.1 ? customer.speed : range(this.rng, 1.0, 1.5);
+        const nx = dx / distance;
+        const nz = dz / distance;
+        const step = Math.min(distance, targetSpeed * dt);
+        customer.x += nx * step;
+        customer.z += nz * step;
+        customer.speed += (targetSpeed - customer.speed) * Math.min(1, dt * 4);
+        customer.faceYaw = Math.atan2(nx, nz);
+        customer.avatar.setSit(false);
+      } else {
+        customer.speed += (0 - customer.speed) * Math.min(1, dt * 6);
+        // Face the walkway — benches look out onto the street.
+        customer.faceYaw = customer.targetX < 0 ? Math.PI / 2 : -Math.PI / 2;
+        customer.avatar.setSit(true);
+        if (customer.timer <= 0) {
+          customer.avatar.setSit(false);
+          customer.sitIndex = -1;
+          customer.state = 'scan';
+          customer.timer = range(this.rng, 0.4, 1.5);
+        }
+      }
     } else if (customer.state === 'eat') {
       // Finished meal — stand a moment, then head out.
       customer.speed += (0 - customer.speed) * Math.min(1, dt * 6);
@@ -396,7 +438,8 @@ export class CrowdSystem {
       customer.state === 'walk' ||
       customer.state === 'queue' ||
       customer.state === 'waitFood' ||
-      customer.state === 'leave';
+      customer.state === 'leave' ||
+      customer.state === 'sit';
     customer.avatar.update(dt, elapsed + customer.bob, moving ? customer.speed : 0.001);
   }
 
@@ -420,6 +463,10 @@ export class CrowdSystem {
   private chooseTarget(customer: Customer): void {
     // Food stalls run a real queue — hungry shoppers line up at the counter.
     if (this.ownIsFood && this.ownConfigured && this.rng() < 0.5 && this.tryJoinQueue(customer)) {
+      return;
+    }
+    // Rest stop — plaza benches invite a spell of people-watching.
+    if (this.rng() < 0.12 && this.trySit(customer)) {
       return;
     }
     const roll = this.rng();
@@ -509,6 +556,8 @@ export class CrowdSystem {
     customer.chatLine = 0.25;
     customer.talkCd = 7;
     customer.speed = 0;
+    customer.sitIndex = -1;
+    customer.avatar.setSit(false);
     customer.faceYaw = Math.atan2(px - customer.x, pz - customer.z);
     customer.avatar.say(pick(this.rng, ['Kumusta!', 'Uy!', 'Hello, uy!']), 1.6);
     customer.avatar.react();
@@ -551,6 +600,27 @@ export class CrowdSystem {
     customer.targetX = pos.x;
     customer.targetZ = pos.z;
     customer.timer = 0;
+    return true;
+  }
+
+  /** Claim a free plaza bench and settle in for a while. */
+  private trySit(customer: Customer): boolean {
+    if (!this.benchSpots.length) return false;
+    const used = new Set<number>();
+    for (const c of this.customers) {
+      if (c.active && c.state === 'sit') used.add(c.sitIndex);
+    }
+    const free = this.benchSpots.map((_, i) => i).filter((i) => !used.has(i));
+    if (!free.length) return false;
+    const idx = free[Math.floor(this.rng() * free.length)];
+    const spot = this.benchSpots[idx];
+    customer.sitIndex = idx;
+    customer.state = 'sit';
+    customer.atSlot = false;
+    customer.targetX = spot.x;
+    customer.targetZ = spot.z;
+    customer.timer = range(this.rng, 14, 30);
+    customer.speed = 0;
     return true;
   }
 
