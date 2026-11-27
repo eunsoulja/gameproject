@@ -178,7 +178,7 @@ export class Game {
 
       this.setBoot('Setting out the market stalls…', 44, TIPS[2]);
       this.market = new MarketGenerator(this.scene, this.collision);
-      this.market.build();
+      this.market.build(this.settings.current.quality);
       await this.nextFrame();
 
       this.setBoot('Stringing a hundred umbrellas…', 58, TIPS[3]);

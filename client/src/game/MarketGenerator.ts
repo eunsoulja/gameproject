@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { DISTRICTS, WORLD, districtAt, zoneCategoryAt } from '../../../shared/layout';
 import type { StallCategory } from '../../../shared/config';
+import type { QualitySetting } from '../systems/Settings';
 import type { CollisionSystem } from './CollisionSystem';
 import {
   MATERIALS,
@@ -80,9 +81,12 @@ export class MarketGenerator {
     this.glowTexture = makeGlowTexture();
   }
 
-  build(): void {
+  private quality: QualitySetting = 'high';
+
+  build(quality: QualitySetting = 'high'): void {
     if (this.built) return;
     this.built = true;
+    this.quality = quality;
     this.buildStallRows();
     this.buildTianggeAlley();
     this.buildPlaza();
@@ -141,7 +145,8 @@ export class MarketGenerator {
             label: this.rng() > 0.34 ? pick(this.rng, STALL_LABELS) : undefined,
           });
           // A second, cheaper row of tarps leans against the shopfronts.
-          if (this.rng() > 0.4) {
+          // Low quality thins them out — the street stays readable.
+          if (this.rng() > (this.quality === 'low' ? 0.72 : 0.4)) {
             spots.push({
               side,
               z: z + width / 2 + range(this.rng, -0.5, 0.5),
@@ -163,6 +168,7 @@ export class MarketGenerator {
 
   /** A deeper "suki alley" of small tarps tucked behind the main rows. */
   private buildTianggeAlley(): void {
+    if (this.quality === 'low') return; // skip the extra row on weak machines
     const spots: StallSpot[] = [];
     // Two pockets where the alley opens up — avoids the side streets.
     const ranges: Array<[number, number]> = [
