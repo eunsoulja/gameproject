@@ -86,6 +86,7 @@ export class MarketGenerator {
     this.buildStallRows();
     this.buildTianggeAlley();
     this.buildPlaza();
+    this.buildDistrictSigns();
     this.buildJeepneys();
     this.buildCarts();
     this.buildStreetClutter();
@@ -216,6 +217,34 @@ export class MarketGenerator {
         const y = 4.6 - Math.sin(t * Math.PI) * 0.7;
         this.glow.push(sphere(0.07, i % 2 ? '#ffd76a' : '#ff9d7a', { x, y, z }, 5));
       }
+    }
+  }
+
+  /** Gantry signs at each district boundary so the map reads itself. */
+  private buildDistrictSigns(): void {
+    for (const zone of DISTRICTS) {
+      // Skip the southernmost edge — the ukay alley mouth needs no gate.
+      if (zone.id === 'ukay') continue;
+      const z = zone.zMin + 1.5;
+      // Two posts and a crossbar spanning the walkway.
+      for (const side of [-1, 1] as Array<-1 | 1>) {
+        this.structural.push(cylinder(0.09, 0.11, 4.4, 6, '#4a3623', {
+          x: side * 7.4,
+          y: 2.2,
+          z,
+        }));
+      }
+      this.structural.push(box(15.2, 0.22, 0.22, '#5d4328', { x: 0, y: 4.35, z }));
+      // Hanging name board facing down the street (readable both directions).
+      const texture = makeLabelTexture(zone.name.toUpperCase(), '#ffe9b0', 'rgba(24,13,8,0.94)');
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false });
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 1.1), material);
+      board.position.set(0, 3.7, z);
+      board.renderOrder = 2;
+      this.signMeshes.push(board);
+      const boardBack = board.clone();
+      boardBack.rotation.y = Math.PI;
+      this.signMeshes.push(boardBack);
     }
   }
 
