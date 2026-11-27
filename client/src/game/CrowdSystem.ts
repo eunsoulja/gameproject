@@ -29,6 +29,8 @@ export interface Customer {
   orderTimer: number;
   /** Plaza bench index while sitting (-1 = not seated). */
   sitIndex: number;
+  /** Cooldown before this NPC acknowledges the player again. */
+  reactCd: number;
   faceYaw: number;
   active: boolean;
   bob: number;
@@ -88,6 +90,10 @@ export class CrowdSystem {
   private progress = START_PROGRESS;
   private built = false;
   private benchSpots: Array<{ x: number; z: number }> = [];
+  private playerX = 0;
+  private playerZ = 0;
+  private hasPlayer = false;
+  private playerEmoting = false;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -193,6 +199,7 @@ export class CrowdSystem {
       waitIndex: -1,
       orderTimer: 0,
       sitIndex: -1,
+      reactCd: 0,
       faceYaw: 0,
       active: false,
       bob: index * 0.13,
@@ -201,8 +208,14 @@ export class CrowdSystem {
     };
   }
 
-  update(dt: number, elapsed: number): void {
+  update(dt: number, elapsed: number, playerPos?: THREE.Vector3, playerEmoting = false): void {
     if (!this.built) return;
+    if (playerPos) {
+      this.playerX = playerPos.x;
+      this.playerZ = playerPos.z;
+      this.hasPlayer = true;
+    }
+    this.playerEmoting = playerEmoting;
     this.applyDensity();
     let active = 0;
     for (let i = 0; i < this.customers.length; i++) {
@@ -221,6 +234,7 @@ export class CrowdSystem {
       this.updateCustomer(customer, dt, elapsed);
     }
     this.separateCustomers(dt);
+    this.reactToPlayer(dt, elapsed);
     if (active === 0) this.targetCount = Math.max(6, this.targetCount);
   }
 
@@ -245,6 +259,36 @@ export class CrowdSystem {
     }
   }
 
+  /** NPCs acknowledge the player — wave back at emotes, step out of the way. */
+  private reactToPlayer(dt: number, elapsed: number): void {
+    if (!this.hasPlayer) return;
+    for (const c of this.customers) {
+      if (!c.active) continue;
+      c.reactCd = Math.max(0, c.reactCd - dt);
+      const dx = c.x - this.playerX;
+      const dz = c.z - this.playerZ;
+      const d2 = dx * dx + dz * dz;
+      // Step aside — shoppers give the vendor a wide berth.
+      if (d2 < 1.7 && d2 > 0.001) {
+        const movable =
+          c.state === 'walk' || c.state === 'scan' || c.state === 'browse' || c.state === 'chat';
+        if (movable) {
+          const d = Math.sqrt(d2);
+          const push = ((1.3 - d) / d) * dt * 2.2;
+          c.x += dx * push;
+          c.z += dz * push;
+        }
+      }
+      // Wave back when the player emotes nearby.
+      if (this.playerEmoting && d2 < 10.5 && c.reactCd <= 0) {
+        c.reactCd = range(this.rng, 5, 12);
+        c.faceYaw = Math.atan2(this.playerX - c.x, this.playerZ - c.z);
+        c.avatar.say(pick(this.rng, ['Hello!', 'Oy!', 'Hi!', 'Kumusta!']), 1.8);
+        c.avatar.react();
+      }
+    }
+  }
+
   private activate(customer: Customer): void {
     const x = range(this.rng, -7.6, 7.6);
     const z = range(this.rng, WORLD.playableMinZ + 8, WORLD.playableMaxZ - 8);
@@ -262,6 +306,7 @@ export class CrowdSystem {
     customer.waitIndex = -1;
     customer.orderTimer = 0;
     customer.sitIndex = -1;
+    customer.reactCd = 0;
     customer.avatar.setSit(false);
   }
 

@@ -1410,7 +1410,7 @@ export class Game {
     }
 
     this.remotePlayers.update(dt, this.elapsed);
-    this.crowd.update(dt, this.elapsed);
+    this.crowd.update(dt, this.elapsed, this.player?.position, this.activeEmote != null);
     this.updateNpcTalkTarget();
     this.updateKarendero();
     this.market.update(dt, this.elapsed);
