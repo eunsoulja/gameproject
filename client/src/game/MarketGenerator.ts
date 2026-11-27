@@ -820,6 +820,46 @@ export class MarketGenerator {
       this.fabric.push(sphere(0.4, '#4c7c44', { x: x + 0.25, y: 1.25, z: z + 0.2 }, 6));
     }
 
+    // Parked bicycles leaning on the shopfronts — wheels, frame, handlebars.
+    for (let i = 0; i < 12; i++) {
+      const side = this.rng() > 0.5 ? 1 : -1;
+      const z = range(this.rng, WORLD.playableMinZ + 6, WORLD.playableMaxZ - 6);
+      if (this.nearSideStreet(z, 3)) continue;
+      if (z > -24 && z < 92) continue;
+      const x = side * range(this.rng, 17.1, 18.1);
+      const frame = pick(this.rng, ['#b8452f', '#2e6e8e', '#3e7d4f', '#c9a227', '#5a4a8a']);
+      const dark = '#22201c';
+      // Wheels — fat cylinders rotated so their axle runs along x.
+      this.metal.push(cylinder(0.34, 0.34, 0.055, 10, dark, { x, y: 0.34, z: z - 0.55, rz: Math.PI / 2 }));
+      this.metal.push(cylinder(0.34, 0.34, 0.055, 10, dark, { x, y: 0.34, z: z + 0.55, rz: Math.PI / 2 }));
+      // Frame — top tube, down tube, seat post, fork.
+      this.metal.push(box(0.05, 0.05, 1.15, frame, { x, y: 0.72, z, rz: -0.12 }));
+      this.metal.push(box(0.05, 0.55, 0.05, frame, { x, y: 0.62, z: z - 0.28, rx: 0.5 }));
+      this.metal.push(box(0.05, 0.4, 0.05, frame, { x, y: 0.55, z: z + 0.42, rx: -0.35 }));
+      this.metal.push(box(0.4, 0.04, 0.04, dark, { x, y: 0.98, z: z + 0.62 }));
+      // Seat.
+      this.structural.push(box(0.16, 0.05, 0.28, '#3a2c20', { x, y: 0.92, z: z - 0.18 }));
+    }
+
+    // Vendor speaker boxes and stacked goods by the shopfronts.
+    for (let i = 0; i < 14; i++) {
+      const side = this.rng() > 0.5 ? 1 : -1;
+      const z = range(this.rng, WORLD.playableMinZ + 8, WORLD.playableMaxZ - 8);
+      if (this.nearSideStreet(z, 3)) continue;
+      if (z > -22 && z < 90) continue;
+      const x = side * range(this.rng, 16.2, 17.4);
+      if (this.rng() > 0.5) {
+        // Bolaboy speaker — box with two dark cones.
+        this.structural.push(box(0.55, 0.75, 0.45, pick(this.rng, ['#37424e', '#4a3a2c', '#2f4438']), { x, y: 0.38, z }));
+        this.metal.push(cylinder(0.09, 0.09, 0.03, 8, '#14161a', { x: x - 0.14, y: 0.55, z: z + 0.24, rx: Math.PI / 2 }));
+        this.metal.push(cylinder(0.09, 0.09, 0.03, 8, '#14161a', { x: x + 0.14, y: 0.55, z: z + 0.24, rx: Math.PI / 2 }));
+      } else {
+        // Ice box / cooler.
+        this.structural.push(box(0.6, 0.5, 0.45, pick(this.rng, ['#dfe8ee', '#c8d8e2', '#e8e2d2']), { x, y: 0.25, z }));
+        this.structural.push(box(0.62, 0.06, 0.47, '#9fb4c0', { x, y: 0.53, z }));
+      }
+    }
+
     // Hanging bulbs across the narrower far ends of the street.
     for (let i = 0; i < 7; i++) {
       const z = range(this.rng, WORLD.playableMinZ + 10, -50);
