@@ -119,6 +119,7 @@ export interface PlayerProfile {
   suki: SukiCustomer[];
   lastSukiNoticeAt: number;
   quest: DailyQuest | null;
+  tutorialStep: number;
   difficulty: 'chill' | 'standard' | 'hustle';
   updatedAt: number;
   online: boolean;

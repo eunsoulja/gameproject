@@ -35,6 +35,7 @@ import { SERVER_CONFIG } from '../config';
 import { SaveService, type StoredProfile } from './SaveService';
 import { findFreePlot, sortPlots, toPublicPlot } from './PlotService';
 import {
+  advanceTutorial,
   checkGoalProgress,
   createNewProfile,
   emptyToday,
@@ -938,6 +939,10 @@ export class GameService {
       profile.activeEvent = this.activeEvent;
       try {
         const result = simulateSales(profile, now, this.activeEvent);
+        for (const notice of advanceTutorial(profile, now)) {
+          this.notifyRecord(record, notice);
+          this.emitProfile(record);
+        }
         if (result.revenue > 0) {
           activeSales = true;
           this.plotsDirty = true;

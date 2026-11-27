@@ -12,6 +12,7 @@ import {
   type UpgradeBranch,
 } from '../../../shared/config';
 import type { PlayerProfile } from '../../../shared/types';
+import { tutorialState } from '../../../shared/tutorial';
 import {
   clockLabel,
   currentProgress,
@@ -374,6 +375,14 @@ export class HUD {
     const now = this.serverNow();
     const active = profile.powerUps.filter((p) => p.endsAt === null || p.endsAt > now);
     const quest = profile.quest && !profile.quest.paid ? profile.quest : null;
+    const tutorial = tutorialState(profile);
+    const tutorialChip = tutorial
+      ? `<div class="active-powerup quest-chip" style="--pu-color:#7cd6a5" title="${escapeHtml(tutorial.hint)} — guide step ${tutorial.step + 1}/${tutorial.total}">
+          <span class="icon">${icon('star', 12)}</span>
+          <span class="label">${escapeHtml(tutorial.label)}</span>
+          <span class="time">+${peso(tutorial.reward)}</span>
+        </div>`
+      : '';
     const questChip = quest
       ? `<div class="active-powerup quest-chip" style="--pu-color:#f0c14c" title="${escapeHtml(quest.label)}">
           ${icon('target', 13)}
@@ -381,7 +390,7 @@ export class HUD {
           <span class="time">${Math.min(quest.progress, quest.target)}/${quest.target}</span>
         </div>`
       : '';
-    strip.innerHTML = questChip + active
+    strip.innerHTML = tutorialChip + questChip + active
       .map((pu) => {
         const def = powerUpDef(pu.id);
         let remaining = 'Until used';

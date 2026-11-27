@@ -150,6 +150,7 @@ export function createNewProfile(input: {
     suki: [],
     lastSukiNoticeAt: 0,
     quest: null,
+    tutorialStep: 0,
     difficulty: 'standard',
     updatedAt: Date.now(),
     online: false,
@@ -184,6 +185,7 @@ export function normalizeProfile(input: PlayerProfile): PlayerProfile {
   profile.suki = Array.isArray(profile.suki) ? profile.suki.slice(0, 14) : [];
   profile.lastSukiNoticeAt = Number(profile.lastSukiNoticeAt) || 0;
   profile.quest = profile.quest && typeof profile.quest.day === 'number' ? profile.quest : null;
+  profile.tutorialStep = Math.max(0, Math.min(4, Math.floor(profile.tutorialStep || 0)));
   profile.difficulty =
     profile.difficulty === 'chill' || profile.difficulty === 'hustle' ? profile.difficulty : 'standard';
   profile.updatedAt = profile.updatedAt || Date.now();
@@ -544,6 +546,29 @@ function recordSukiVisit(profile: PlayerProfile, now: number, notices: EconomyNo
       ? `${suki.name} loves your ${favorite.name} — visits counted: ${suki.visits}.`
       : `${suki.name} stopped by your stall. Word travels at the mercado.`,
   });
+}
+
+// ── Guided onboarding arc ─────────────────────────────────────────────────
+
+export { TUTORIAL_STEPS, tutorialState } from '../../../shared/tutorial';
+import { TUTORIAL_STEPS } from '../../../shared/tutorial';
+
+/** Check whether the active tutorial step is complete; pays out and advances. */
+export function advanceTutorial(profile: PlayerProfile, now: number): EconomyNotice[] {
+  const notices: EconomyNotice[] = [];
+  if (profile.tutorialStep >= TUTORIAL_STEPS.length) return notices;
+  const def = TUTORIAL_STEPS[profile.tutorialStep];
+  if (!def.done(profile)) return notices;
+  profile.tutorialStep += 1;
+  profile.balance += def.reward;
+  profile.lifetime.totalEarnings += def.reward;
+  notices.push({
+    kind: 'success',
+    title: `Guide complete: ${def.label}`,
+    message: `+₱${def.reward} tutorial bonus. ${profile.tutorialStep < TUTORIAL_STEPS.length ? `Next: ${TUTORIAL_STEPS[profile.tutorialStep].label}.` : 'You are a seasoned Colon Street vendor now!'}`,
+  });
+  void now;
+  return notices;
 }
 
 // ── Daily quests ────────────────────────────────────────────────────────────
