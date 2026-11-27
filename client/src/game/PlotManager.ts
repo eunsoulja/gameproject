@@ -781,6 +781,10 @@ export class PlotManager {
         }, 6));
       }
       structural.push(box(0.16, 0.11, 0.015, '#f7ecd3', { x: x + base.inward * 0.35, y: y + 0.12, z: z + 0.2 }));
+      // Signature: a hanging pan scale and a banana-leaf shade disc.
+      metal.push(cylinder(0.008, 0.008, 0.5, 4, '#5a4a33', { x: x - base.inward * 0.45, y: y + 0.42, z }));
+      metal.push(cylinder(0.14, 0.14, 0.02, 10, '#c9a24b', { x: x - base.inward * 0.45, y: y + 0.18, z }));
+      fabric.push(cylinder(0.5, 0.5, 0.03, 10, '#4e8a3c', { x: x + base.inward * 0.5, y: y + 0.62, z: z - 0.15 }));
     } else if (category === 'streetFood') {
       structural.push(box(0.72, 0.2, 0.56, '#3b3630', { x, y: y + 0.08, z }));
       glow.push(box(0.55, 0.03, 0.4, '#ff7c2d', { x, y: y + 0.19, z }));
@@ -808,6 +812,15 @@ export class PlotManager {
         }));
       }
       structural.push(box(0.15, 0.1, 0.015, '#f4ecd8', { x: x + base.inward * 0.32, y: y + 0.1, z: z + 0.18 }));
+      // Signature: a bamboo drying rack with hanging danggit strips.
+      metal.push(box(0.7, 0.04, 0.5, '#8a6a42', { x: x - base.inward * 0.5, y: y + 0.55, z }));
+      for (let i = 0; i < 3; i++) {
+        structural.push(box(0.05, 0.3, 0.02, '#caa06a', {
+          x: x - base.inward * 0.62 + i * 0.12,
+          y: y + 0.38,
+          z,
+        }));
+      }
     } else {
       metal.push(cylinder(0.03, 0.03, 1.75, 5, '#4a4640', { x, y: y + 0.78, z }));
       metal.push(box(0.04, 0.04, 0.72, '#4a4640', { x, y: y + 1.62, z }));
@@ -820,6 +833,10 @@ export class PlotManager {
           ry: range(this.rng, -0.2, 0.2),
         }));
       }
+      // Signature: a standing mirror for the ukay-ukay crowd.
+      metal.push(cylinder(0.025, 0.03, 0.9, 5, '#6a6258', { x: x + base.inward * 0.5, y: y + 0.5, z: z + 0.25 }));
+      metal.push(box(0.34, 0.42, 0.03, '#8a94a0', { x: x + base.inward * 0.5, y: y + 1.15, z: z + 0.25 }));
+      glow.push(box(0.28, 0.36, 0.015, '#cfe0ea', { x: x + base.inward * 0.48, y: y + 1.15, z: z + 0.25 }));
     }
   }
 
