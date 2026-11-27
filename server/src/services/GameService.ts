@@ -935,6 +935,11 @@ export class GameService {
     // Customer review — hot-and-fast plates earn five stars, slow ones three.
     const review = waitedMs < 12_000 ? 5 : waitedMs < 30_000 ? 4 : 3;
     profile.reputation = Math.min(100, profile.reputation + review * 0.07);
+    profile.lifetime.karenderoServed = (profile.lifetime.karenderoServed ?? 0) + 1;
+    profile.lifetime.karenderoBestStreak = Math.max(
+      profile.lifetime.karenderoBestStreak ?? 0,
+      streak,
+    );
 
     const notices: EconomyNotice[] = [];
     updateQuestProgress(profile, 1, total, 1, notices);

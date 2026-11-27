@@ -36,6 +36,9 @@ export interface LifetimeStats {
   totalUpgrades: number;
   daysPlayed: number;
   peakDayRevenue: number;
+  /** Karendero mode — lifetime plates served and best fast-service streak. */
+  karenderoServed?: number;
+  karenderoBestStreak?: number;
 }
 
 export interface DailyReport {

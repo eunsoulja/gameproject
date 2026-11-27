@@ -82,6 +82,12 @@ export class StatsMenu {
                 <b>${profile.lifetime.daysPlayed}</b>
                 <small>Goal ${goalStage}/${GOALS.length}</small>
               </div>
+              <div class="ledger-figure">
+                <span class="ledger-fig-icon" style="--c:#e58f6b">${icon('bbq', 15)}</span>
+                <span class="ledger-fig-label">Karendero plates</span>
+                <b>${(profile.lifetime.karenderoServed ?? 0).toLocaleString('en-PH')}</b>
+                <small>Best streak ×${profile.lifetime.karenderoBestStreak ?? 0}</small>
+              </div>
             </div>
           </section>
 
