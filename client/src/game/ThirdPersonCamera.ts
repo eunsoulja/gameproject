@@ -44,9 +44,13 @@ export class ThirdPersonCamera {
   }
 
   shake(amount: number, duration = 0.5): void {
+    if (!this.shakeEnabled) return;
     this.shakeAmount = Math.max(this.shakeAmount, amount);
     this.shakeTime = Math.max(this.shakeTime, duration);
   }
+
+  /** Settings toggle — when off, impact shakes are ignored. */
+  shakeEnabled = true;
 
   /** Brief FOV punch for big moments — sales, upgrades, quest completes. */
   pulseFov(amount = 5): void {

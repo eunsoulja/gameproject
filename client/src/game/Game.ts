@@ -112,6 +112,9 @@ export class Game {
   private introPlayed = false;
   private confetti: Confetti | null = null;
   private hagglePrompt: HTMLElement | null = null;
+  private fpsEl: HTMLElement | null = null;
+  private fpsTimer = 0;
+  private fpsFrames = 0;
   private onboarded = false;
   private muted = false;
   private earnedBadges = new Set<string>();
@@ -922,6 +925,7 @@ export class Game {
     }
     this.player?.setShadows(settings.quality === 'high');
     this.input.touchSensitivity = settings.touchSensitivity;
+    if (this.cameraRig) this.cameraRig.shakeEnabled = settings.cameraShake;
     this.remotePlayers?.setShadows(settings.quality === 'high');
     this.remotePlayers?.setShowNames(settings.showNames);
     this.crowd?.setQuality(settings.quality);
@@ -972,6 +976,24 @@ export class Game {
     const emote = this.input.consumeEmote();
     const mute = this.input.consumeMute();
     const fullscreen = this.input.consumeFullscreen();
+    // FPS counter (settings toggle) — updates twice a second.
+    this.fpsFrames++;
+    this.fpsTimer += dt;
+    if (this.fpsTimer >= 0.5) {
+      const fps = Math.round(this.fpsFrames / this.fpsTimer);
+      this.fpsTimer = 0;
+      this.fpsFrames = 0;
+      const want = this.settings.current.showFps;
+      if (want && !this.fpsEl) {
+        this.fpsEl = document.createElement('div');
+        this.fpsEl.id = 'fps-counter';
+        document.body.appendChild(this.fpsEl);
+      }
+      if (this.fpsEl) {
+        this.fpsEl.style.display = want ? 'block' : 'none';
+        if (want) this.fpsEl.textContent = `${fps} fps`;
+      }
+    }
     const resetCam = this.input.consumeResetCamera();
     const namesToggle = this.input.consumeNames();
     const hasProfile = !!this.profile && !!this.player;

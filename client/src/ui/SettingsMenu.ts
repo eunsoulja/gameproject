@@ -56,6 +56,8 @@ export class SettingsMenu {
             ${this.toggle('Invert drag', 'invertDrag', settings.invertDrag, 'Drag left to look right')}
             ${this.toggle('Player name tags', 'showNames', settings.showNames, 'Show vendor names above other players')}
             ${this.toggle('Reduce motion', 'reduceMotion', settings.reduceMotion, 'Calmer camera and fewer visual effects')}
+            ${this.toggle('Camera shake', 'cameraShake', settings.cameraShake, 'Impact thumps and landing shakes')}
+            ${this.toggle('FPS counter', 'showFps', settings.showFps, 'Show frames per second in the corner')}
           </div>
 
           <div class="settings-group">

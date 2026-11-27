@@ -11,6 +11,8 @@ export interface GameSettings {
   reduceMotion: boolean;
   weatherEffects: boolean;
   invertDrag: boolean;
+  cameraShake: boolean;
+  showFps: boolean;
 }
 
 const STORAGE_KEY = 'merkado.settings.v1';
@@ -26,6 +28,8 @@ const DEFAULTS: GameSettings = {
   reduceMotion: false,
   weatherEffects: true,
   invertDrag: false,
+  cameraShake: true,
+  showFps: false,
 };
 
 /** Small persisted settings store shared by the renderer, audio and camera. */
@@ -88,6 +92,8 @@ export class SettingsManager {
         weatherEffects:
           typeof parsed.weatherEffects === 'boolean' ? parsed.weatherEffects : DEFAULTS.weatherEffects,
         invertDrag: typeof parsed.invertDrag === 'boolean' ? parsed.invertDrag : DEFAULTS.invertDrag,
+        cameraShake: typeof parsed.cameraShake === 'boolean' ? parsed.cameraShake : DEFAULTS.cameraShake,
+        showFps: typeof parsed.showFps === 'boolean' ? parsed.showFps : DEFAULTS.showFps,
       };
     } catch {
       return { ...DEFAULTS };
